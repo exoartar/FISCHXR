@@ -36,7 +36,8 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.2.0"
+APP_VER := "4.2.2"
+UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
 if (!FileExist(IniPath) && FileExist(A_ScriptDir "\FischMacro.ini"))
@@ -137,7 +138,7 @@ Defaults := Map(
     "HookSummary", 60, "HookShots", 1,
     "AutoReconnect", 0, "RejoinLink", "roblox://experiences/start?placeId=16732694052", "RejoinWait", 40,
     "RejoinMax", 4, "RejoinResume", 1, "ReelSnaps", 1,
-    "MiniHud", 1, "UpdateUrl", "", "AutoUpdate", 1, "LastVersion", ""
+    "MiniHud", 1, "UpdateUrl", UPDATE_URL, "AutoUpdate", 1, "LastVersion", ""
 )
 TextKeys := "|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
 BoolKeys := ["RodReequip", "UseNavKey", "AqAuto", "ColorSafe", "ReduceMotion", "Speak", "Sounds", "ShowSplash", "ShowHome", "OnTop", "ShowAreas"
@@ -188,7 +189,7 @@ RodLib := [
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
     {id: "departed",    name: "Remembrance (Departed)", fish: ["FFFFFF"], ft: 10, bar: ["474747"], bt: 8},
     {id: "migu",        name: "Migu Rod",               fish: ["F9D9D4", "FAD6CE", "F9D4C7", "F9D2C4", "F8D0B7"], ft: 10, bar: ["E9B681", "E0A66F", "D1935B"], bt: 8},
-    {id: "noiseform",   name: "Noiseform",              fish: ["0C4125", "003820", "0D3A27"], ft: 8
+    {id: "noiseform",   name: "Noiseform",              kind: "box", fish: ["0C4125", "003820", "0D3A27"], ft: 8
         , bar: ["33A95F", "2C894D", "2AB778", "5CBD8C", "74C198", "60BC8E", "19B572", "010101"], bt: 10}
 ]
 
@@ -235,6 +236,8 @@ if OldLayout {
     try IniWrite(Cfg["WinW"], IniPath, "Settings", "WinW"), IniWrite(Cfg["WinH"], IniPath, "Settings", "WinH")
 }
 try IniWrite(2, IniPath, "Settings", "UiVersion")
+if (Trim(Cfg["UpdateUrl"]) = "")             ; an empty saved link means the built-in one
+    Cfg["UpdateUrl"] := UPDATE_URL
 LoadRodMemory()
 LoadTotems()
 ResolveTheme()
@@ -4659,6 +4662,7 @@ VisionGeo(a) {
 
 VisionGrab(b, geo) {
     b.Grab(geo.x, geo.y)
+    b.geo := geo
     ColumnColors(b, geo)
 }
 
@@ -4704,7 +4708,7 @@ NewProfile(name, track, bar, fish, barW := 0) {
 FillProfile(p) {
     for k, v in Map("id", "", "name", "Rod", "track", [], "bar", [], "fish", [], "barW", 0
         , "tolT", 24, "tolB", 24, "tolF", 22, "edgeT", "", "edgeB", "", "sovereign", 0
-        , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false)
+        , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "")
         if !p.HasOwnProp(k)
             p.%k% := v
     return p
@@ -4741,6 +4745,8 @@ ClassifyKey(p, k) {
 ; (fish colour anywhere, a gap inside the bar, or an odd colour outside it).
 ; predFish, when known, breaks ties toward where the fish was.
 VisionScan(b, p, predFish := -1) {
+    if (p.kind = "box")
+        return BoxScan(b, b.geo, predFish, p)
     w := b.w, cols := b.cols, lab := b.lab, lut := p.lut, covered := 0, x := 0
     while (x < w) {
         c := NumGet(cols, x * 4, "UInt")
@@ -5228,6 +5234,16 @@ ProbeLib(b, lib) {
     for h in lib.fish
         fishes.Push(Integer("0x" h))
     green := lib.HasOwnProp("greenBar") && lib.greenBar
+    if (lib.HasOwnProp("kind") && lib.kind = "box") {
+        ; read by shape (see BoxScan): no colours to match
+        d := BoxScan(b, b.geo)
+        if !(d.bar && d.fish)
+            return 0
+        p := FillProfile({name: CurRodName != "" ? CurRodName : lib.name, lib: lib.id, kind: "box"
+            , barW: (d.br - d.bl + 1) / b.w, id: "rod:" (CurRodName != "" ? CurRodName : lib.id)})
+        ResetLut(p)
+        return {prof: p, d: d}
+    }
     probe := FillProfile({name: lib.name, bar: bars, fish: fishes, tolB: lib.bt + 6, tolF: lib.ft + 6, greenBar: green, probe: true})
     ResetLut(probe)
     d := VisionScan(b, probe)
@@ -5587,6 +5603,150 @@ BandCopy(b) {
     DllCall("DeleteDC", "Ptr", mdc)
     DllCall("ReleaseDC", "Ptr", 0, "Ptr", sdc)
     return hbm
+}
+
+;------------------------------------------------------------------------------
+; Noiseform's reel, read by its shape. Its glow follows the fish and its bar
+; turns dark and see-through when the fish leaves it, so colours don't hold.
+; What does: the bar is a box whose sides are thin black lines running the
+; full height of the reel, and the fish is a black capsule that sticks out
+; above and below that box. Measured on a real Noiseform reel.
+;------------------------------------------------------------------------------
+BoxScan(b, geo, predFish := -1, p := 0) {
+    barW := p ? p.barW : 0
+    w := b.w, cols := b.cols, bits := b.bits, st := b.stride
+    none := {bar: false, bl: -1, br: -1, fish: false, fx: -1, cover: 0, n: 0, fishCol: false}
+    ; the fish: a black capsule above and below the reel, same place in both
+    ; rows (its lower end reads a little wider in the glow)
+    off := Max(3, Round(geo.ih * 0.3))
+    up := BoxRuns(b, Max(0, geo.m - off), w), dn := BoxRuns(b, Min(b.h - 1, geo.m + geo.ih + off), w)
+    fx := -1, fBest := 1e9, tol := Max(3, Round(w * 0.004))
+    for u in up
+        for v in dn {
+            if (Abs(u[1] - v[1]) > tol || Abs(u[2] - v[2]) > Max(4, 0.6 * Max(u[2], v[2])))
+                continue
+            cen := (u[1] + v[1]) / 2
+            sc := Abs(u[2] - v[2]) + (predFish >= 0 ? Abs(cen - predFish) / Max(1, w * 0.05) : 0)
+            if (sc < fBest)
+                fBest := sc, fx := cen
+        }
+    none.fish := fx >= 0, none.fx := fx, none.fishCol := fx >= 0
+    ; the bar: thin dark runs across the middle rows are candidates for its sides
+    maxW := Max(4, Round(w * 0.005)), cands := [], rs := -1, x := 0
+    while (x <= w) {
+        dark := false
+        if (x < w) {
+            c := NumGet(cols, x * 4, "UInt")
+            dark := ((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < 45
+        }
+        if dark {
+            if (rs < 0)
+                rs := x
+        } else if (rs >= 0) {
+            cx := (rs + x - 1) // 2
+            if (x - rs <= maxW && cx > w * 0.01 && cx < w * 0.99)    ; not the track's own end caps
+                cands.Push(cx)
+            rs := -1
+        }
+        x++
+    }
+    if (cands.Length < 1 || cands.Length > 40)
+        return none
+    ; 2. how tall each is: the sides run the full height of the box
+    spans := []
+    for cx in cands
+        spans.Push(BoxSpan(b, cx, geo.r2))
+    ; Both sides must cover the reel box's rows top to bottom (the arrows
+    ; fill only the middle). A side next to a dark area can read taller than
+    ; it is, so heights aren't compared; the width closest to the bar's wins.
+    want := barW ? barW * w : w * 0.30
+    best := 1e9, bi := 0, bj := 0
+    for i, a in spans {
+        if (a[1] > geo.m + 2 || a[2] < geo.m + geo.ih - 2)
+            continue
+        for j, z in spans {
+            if (j <= i || z[1] > geo.m + 2 || z[2] < geo.m + geo.ih - 2)
+                continue
+            gap := cands[j] - cands[i]
+            lo := barW ? (barW - 0.08) * w : w * 0.22, hi := barW ? (barW + 0.08) * w : w * 0.40
+            if (gap < lo || gap > hi)
+                continue
+            sc := Abs(gap - want)
+            if (sc < best)
+                best := sc, bi := i, bj := j
+        }
+    }
+    ; One side hidden (in the dark state a zone can cover it): once the reel
+    ; is running, the bar's width and last place are known, so the other
+    ; side is one bar-width away, on whichever side keeps it near its last place.
+    if (!bi && p && barW && p.HasOwnProp("boxPrev") && p.boxPrev >= 0) {
+        bw := barW * w, bestD := w * 0.15
+        for i, a in spans {
+            if (a[1] > geo.m + 2 || a[2] < geo.m + geo.ih - 2)
+                continue
+            for o in [[cands[i], cands[i] + bw], [cands[i] - bw, cands[i]]] {
+                if (o[1] < -2 || o[2] > w + 1)
+                    continue
+                dd := Abs((o[1] + o[2]) / 2 - p.boxPrev)
+                if (dd < bestD)
+                    bestD := dd, bl := Round(o[1]) + 2, br := Round(o[2]) - 2, bi := -1
+            }
+        }
+    }
+    if !bi
+        return none
+    if (bi > 0)
+        bl := cands[bi] + 2, br := cands[bj] - 2
+    if p
+        p.boxPrev := (bl + br) / 2
+    return {bar: true, bl: bl, br: br, fish: fx >= 0, fx: fx, cover: 1, n: br - bl + 1, fishCol: fx >= 0}
+}
+
+; Top and bottom rows of the black line through (x, y), bridging tiny gaps.
+BoxSpan(b, x, y) {
+    bits := b.bits, st := b.stride, o := x * 4, top := y, bot := y, t := y
+    while (t > 0) {
+        t--
+        c := NumGet(bits, t * st + o, "UInt")
+        if (((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < 45)
+            top := t
+        else if (top - t > 2)
+            break
+    }
+    t := y
+    while (t < b.h - 1) {
+        t++
+        c := NumGet(bits, t * st + o, "UInt")
+        if (((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < 45)
+            bot := t
+        else if (t - bot > 2)
+            break
+    }
+    return [top, bot]
+}
+
+; Dark runs of fish width along row y: [[centre, width], ...].
+BoxRuns(b, y, w) {
+    bits := b.bits, o := y * b.stride, runs := [], rs := -1, x := 0
+    lo := Max(3, Round(w * 0.004)), hi := Max(8, Round(w * 0.025))
+    while (x <= w) {
+        dark := false
+        if (x < w) {
+            c := NumGet(bits, o + x * 4, "UInt")
+            dark := ((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < 45
+        }
+        if dark {
+            if (rs < 0)
+                rs := x
+        } else if (rs >= 0) {
+            n := x - rs
+            if (n >= lo && n <= hi)
+                runs.Push([rs + (n - 1) / 2, n])
+            rs := -1
+        }
+        x++
+    }
+    return runs
 }
 
 
@@ -6431,8 +6591,10 @@ SigDiffers(a, b) {
 ; On opening (and on request) the macro reads it; if the version is newer it
 ; shows the notes and, if you accept, downloads the new file, checks its
 ; SHA-256 against the manifest, keeps the old file as .bak and restarts.
-; Whoever controls that address controls what gets installed, so it belongs
-; on an account with two-factor sign-in.
+; The fingerprint is taken with Windows line endings turned into plain ones,
+; so it matches however Git stored the file. Whoever controls that address
+; controls what gets installed, so it belongs on an account with two-factor
+; sign-in.
 ;------------------------------------------------------------------------------
 VersionNewer(a, b) {
     pa := StrSplit(RegExReplace(a, "[^\d.]"), "."), pb := StrSplit(RegExReplace(b, "[^\d.]"), ".")
@@ -6450,6 +6612,7 @@ HttpGet(url, &status, binary := false, timeoutMs := 8000) {
     req.Open("GET", url, false)
     req.SetTimeouts(timeoutMs, timeoutMs, timeoutMs, timeoutMs)
     req.SetRequestHeader("Cache-Control", "no-cache")
+    req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
     req.Send()
     status := req.Status
     if !binary
@@ -6545,7 +6708,7 @@ ApplyUpdate(info, target := "", restart := true) {
         return UpdateFailed("Couldn't download the update.")
     if (st != 200)
         return UpdateFailed("The download answered HTTP " st ".")
-    if (Sha256Hex(buf) != info.sha256)
+    if (Sha256Hex(NormalizeEol(buf)) != info.sha256)
         return UpdateFailed("The download didn't match its SHA-256 fingerprint, so it wasn't used.")
     head := Buffer(4001, 0)
     DllCall("RtlMoveMemory", "Ptr", head, "Ptr", buf, "UPtr", Min(4000, buf.Size))
@@ -6567,6 +6730,19 @@ ApplyUpdate(info, target := "", restart := true) {
     return true
 }
 
+; The bytes with every CR-LF turned into LF, for the fingerprint.
+NormalizeEol(buf) {
+    sz := buf.Size, out := Buffer(Max(1, sz)), n := 0, i := 0
+    while (i < sz) {
+        c := NumGet(buf, i, "UChar")
+        if !(c = 13 && i + 1 < sz && NumGet(buf, i + 1, "UChar") = 10)
+            NumPut("UChar", c, out, n++)
+        i++
+    }
+    out.Size := Max(1, n)
+    return out
+}
+
 UpdateFailed(msg) {
     UpdateNote(msg)
     try LogEvent("Update: " msg)
@@ -6577,6 +6753,12 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+4.2.2
+- Updates now come from the FISCHXR page on GitHub: the macro checks when it opens and asks before installing.
+
+4.2.1
+- Noiseform: the reel is read by its shape (the bar's black sides and the fish's black capsule), so it keeps working when the bar turns dark with the fish outside it.
+
 4.2.0
 - Now called FISCHXR. Your settings carry over.
 - Reads the rod in your hotbar and uses its built-in reel style. Nothing about rods is learned or saved, so no more duplicate rods.
