@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.2.2"
+APP_VER := "4.2.3"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -2322,7 +2322,7 @@ SwitchTab(name, speak := true) {
         if (t = name)
             mode := "adv"
     UI.navMode := mode
-    UI.desc.Visible := (name != "Home" && Pages[name].desc != "")
+    UI.desc.Visible := (name != "Home")        ; hover help and messages show here
     UI.desc.Text := Pages[name].desc
     PaintTabs()
     SlideIn(Pages[name].ctls)
@@ -6685,11 +6685,21 @@ UpdateNote(msg) {
 }
 
 CheckForUpdate(quiet := false, *) {
+    if !quiet
+        UpdateNote("Checking for updates…")
     info := UpdateInfo()
-    if !IsObject(info)
-        return UpdateNote(info)
-    if !VersionNewer(info.version, APP_VER)
-        return UpdateNote("You have the latest version (" APP_VER ").")
+    if !IsObject(info) {
+        UpdateNote(info)
+        if !quiet
+            Dialog.Show("Updates", info, "Close")
+        return
+    }
+    if !VersionNewer(info.version, APP_VER) {
+        UpdateNote("You have the latest version (" APP_VER ").")
+        if !quiet
+            Dialog.Show("Updates", "You have the latest version (" APP_VER ").", "Close")
+        return
+    }
     UpdateNote("Version " info.version " is available.")
     if (quiet && Running)
         return
@@ -6753,6 +6763,9 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+4.2.3
+- Check for updates now shows its answer, and hover help shows on every page again.
+
 4.2.2
 - Updates now come from the FISCHXR page on GitHub: the macro checks when it opens and asks before installing.
 

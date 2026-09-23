@@ -1,6 +1,6 @@
 {
-  "version": "4.2.2",
+  "version": "4.2.3",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "a29745c848488d3ce2e073771b94384c1ab39ef00637f2d48acac232a2f23c12",
-  "notes": "Updates now come from the FISCHXR page on GitHub: the macro checks when it opens and asks before installing.\nNoiseform is read by the shape of its reel, so it works when the bar turns dark."
+  "sha256": "8c5058f6e05008e386cda1ca91d50d03ed5ca3ed9b3c4d36818bd80da8bf1249",
+  "notes": "Check for updates now shows its answer, and hover help shows on every page again."
 }
