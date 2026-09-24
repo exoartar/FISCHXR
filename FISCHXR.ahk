@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.2.3"
+APP_VER := "4.4.6"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -189,6 +189,7 @@ RodLib := [
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
     {id: "departed",    name: "Remembrance (Departed)", fish: ["FFFFFF"], ft: 10, bar: ["474747"], bt: 8},
     {id: "migu",        name: "Migu Rod",               fish: ["F9D9D4", "FAD6CE", "F9D4C7", "F9D2C4", "F8D0B7"], ft: 10, bar: ["E9B681", "E0A66F", "D1935B"], bt: 8},
+    {id: "pinion",      name: "Pinion's Aria",          kind: "caps", notes: true, fish: [], ft: 8, bar: [], bt: 8},
     {id: "noiseform",   name: "Noiseform",              kind: "box", fish: ["0C4125", "003820", "0D3A27"], ft: 8
         , bar: ["33A95F", "2C894D", "2AB778", "5CBD8C", "74C198", "60BC8E", "19B572", "010101"], bt: 10}
 ]
@@ -212,6 +213,7 @@ OutReel := 0, OutShake := 0, OutAq := 0, CurTab := "Home"
 CurRod := 0, SelRod := 0, RodProfiles := [], ProfSeq := 0, VisionLog := []
 LiveBand := 0, LiveGeo := 0, LiveD := 0, LiveP := 0, LiveEp := -1, LiveT := 0, LiveHbm := 0, LiveRate := 0
 UpdAllowLocal := false, UpdLast := ""
+ShapeWhy := "", UnmatchedAt := 0
 SessionLooks := Map(), CurRodName := "", CurRodLib := "", RodReadBusy := false, RodReadAt := 0, RodReadLast := "", OcrHook := 0
 LivePreview := false, PreviewBand := 0, PreviewGeo := 0, EditCtls := Map(), ColX := 0, RowBase := 0
 Totems := [], SovReels := 0, SovLast := ""
@@ -703,6 +705,9 @@ ShakeUntilReel(b, geo, base) {
         navOn := true
     }
     hits := 0, lastShake := 0, lastNote := 0, lastLearn := 0, why := ""
+    ; the rod's name decides its reel style; while it's unknown, read it again
+    if (CurRodName = "" && A_TickCount - RodReadAt > 20000)
+        SetTimer(ReadRodName, -10)
     while Running {
         if (!WaitForFocus() || ReconnectDue())
             return "stop"
@@ -712,7 +717,9 @@ ShakeUntilReel(b, geo, base) {
             r := MatchPrecoded(b, geo)
             if (!r && A_TickCount - lastLearn > 4000) {
                 lastLearn := A_TickCount
-                LogVision("No built-in reel style fits this reel" (CurRodName != "" ? " (" CurRodName ")" : ""))
+                LogVision("No built-in reel style fits this reel" (CurRodName != "" ? " (" CurRodName ")" : "")
+                    . (ShapeWhy != "" ? ": " ShapeWhy : ""))
+                SaveUnmatched(b)
             }
         }
         if r {
@@ -793,7 +800,9 @@ ReelStillUp(b, geo, p) {
     Loop 3 {
         VisionGrab(b, geo)
         d := VisionScan(b, p)
-        ep := EdgesPresent(b, geo, p)
+        ; shape-read rods (Noiseform, Pinion's Aria) are present when their shape is:
+        ; their tubes have no crisp outline to check
+        ep := p.kind != "" ? -1 : EdgesPresent(b, geo, p)
         hits += (ep = 1) || (d.bar && d.cover >= 0.8 && ep != 0)
         Sleep 40
     }
@@ -829,6 +838,10 @@ ClickShake() {
 Reel(b, geo, base, r) {
     global CurRod, LiveD, LiveP, LiveEp, LiveT, LiveRate
     p := r.prof, w := b.w
+    if p.notes
+        NoteWatch.Setup(geo)             ; Pinion's Aria: watch for falling notes
+    if (p.kind = "box" && (zcr := ClientRect(RobloxHwnd)))
+        ZoneWatch.Setup(zcr)             ; Noiseform: watch for the zone warning
     edge := w * Cfg["EdgeMargin"] / 100
     physics := (Cfg["ControlStyle"] = "physics")
     autoLag := physics && Cfg["Latency"] = 0
@@ -837,7 +850,7 @@ Reel(b, geo, base, r) {
     est := {aH: 3.0 * w / 1e6, aR: 3.0 * w / 1e6, wH: 0.2, wR: 0.2, nH: 0, nR: 0, fits: 0}
     lag := LagEstimator(L)
     holding := false, tSwitch := QPC() - 1000, sw := [[tSwitch, false]]
-    c := -1, v := 0, tC := 0, f := -1, fv := 0, tF := 0
+    c := -1, v := 0, tC := 0, f := -1, fv := 0, tF := 0, aim := "fish", lastAim := "fish"
     lastBl := -2, lastBr := -2, lastFx := -2, tFrame := 0, vmaxSeen := 0
     widths := [], bw := 0, memKey := "", segT := [], segX := []
     t0 := A_TickCount, lastUI := t0, lastDash := 0, frame := 0, ep := -1, good := 0
@@ -863,10 +876,25 @@ Reel(b, geo, base, r) {
             ; Verdant Oath: aim the fish at the green zone, not the bar's centre
             if (p.greenBar && d.bar && d.fish && (gz := GreenZone(b, d)) >= 0)
                 d.fx -= gz - (d.bl + d.br) / 2
+            ; Noiseform: after the warning, take the bar to the zone it named
+            aim := "fish"
+            if (p.kind = "box" && ZoneWatch.grab) {
+                ZoneWatch.Update(A_TickCount / 1000)
+                if ((zt := ZoneWatch.Target(A_TickCount / 1000, b, geo, p)) >= 0)
+                    d.fx := zt, d.fish := true, aim := "zone"
+            }
+            ; Pinion's Aria: catch the falling notes, keeping the fish when both fit
+            if p.notes {
+                NoteWatch.Update(A_TickCount / 1000)
+                if ((nt := NoteWatch.Target(A_TickCount / 1000, d)) >= 0)
+                    d.fx := nt, d.fish := true, aim := "note"
+            }
         }
         frame++
         if (Mod(frame, 4) = 1)
-            ep := EdgesPresent(b, geo, p)
+            ; shape-read rods (Noiseform, Pinion's Aria) are present when their shape is:
+            ; their tubes have no crisp outline to check
+            ep := p.kind != "" ? -1 : EdgesPresent(b, geo, p)
         now := A_TickCount
         LiveD := d, LiveP := p, LiveEp := ep, LiveT := now     ; for the Live tab
         if (now - rateT >= 1000)
@@ -974,7 +1002,7 @@ Reel(b, geo, base, r) {
                     ; confirming the reel: the outline exists only on the real
                     ; reel UI, and input lag or a rod's odd physics can make a
                     ; real bar look like it isn't answering.
-                    if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1)
+                    if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1 && p.kind = "")
                         phantom := true
                     if (physics && (!autoLag || lag.n >= 40))
                         FitSegment(segT, segX, holding, est, w)
@@ -987,7 +1015,7 @@ Reel(b, geo, base, r) {
             still.Push([tq, cm])
             while (still.Length > 2 && still[2][1] < tq - 1200)
                 still.RemoveAt(1)
-            if (!nearWall && tq - still[1][1] >= 1100 && tq - tSwitch >= 150) {
+            if (p.kind = "" && !nearWall && tq - still[1][1] >= 1100 && tq - tSwitch >= 150) {
                 lo := 1e9, hi := -1e9
                 for s in still
                     lo := Min(lo, s[2]), hi := Max(hi, s[2])
@@ -1013,7 +1041,11 @@ Reel(b, geo, base, r) {
             UpdateRodInfo(p, bw / w, memKey)
         }
 
-        ; Fish: same kind of tracker, used to lead the target.
+        ; Fish: same kind of tracker, used to lead the target. Switching what
+        ; the bar aims at (a zone, a note, the fish) isn't the fish moving, so
+        ; the tracker starts afresh instead of reading the jump as speed.
+        if (aim != lastAim)
+            f := -1, fv := 0, lastAim := aim
         if (d.fish && fresh) {
             if (f < 0) {
                 f := d.fx, fv := 0
@@ -1058,7 +1090,7 @@ Reel(b, geo, base, r) {
         }
         ; Roblox reads input once per frame, so never flip faster than that.
         if (hold != holding && tq - tSwitch >= 16) {
-            if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1) {
+            if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1 && p.kind = "") {
                 phantom := true
                 break
             }
@@ -4708,7 +4740,7 @@ NewProfile(name, track, bar, fish, barW := 0) {
 FillProfile(p) {
     for k, v in Map("id", "", "name", "Rod", "track", [], "bar", [], "fish", [], "barW", 0
         , "tolT", 24, "tolB", 24, "tolF", 22, "edgeT", "", "edgeB", "", "sovereign", 0
-        , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "")
+        , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0)
         if !p.HasOwnProp(k)
             p.%k% := v
     return p
@@ -4747,6 +4779,8 @@ ClassifyKey(p, k) {
 VisionScan(b, p, predFish := -1) {
     if (p.kind = "box")
         return BoxScan(b, b.geo, predFish, p)
+    if (p.kind = "caps")
+        return CapScan(b, b.geo, predFish, p)
     w := b.w, cols := b.cols, lab := b.lab, lut := p.lut, covered := 0, x := 0
     while (x < w) {
         c := NumGet(cols, x * 4, "UInt")
@@ -5234,13 +5268,15 @@ ProbeLib(b, lib) {
     for h in lib.fish
         fishes.Push(Integer("0x" h))
     green := lib.HasOwnProp("greenBar") && lib.greenBar
-    if (lib.HasOwnProp("kind") && lib.kind = "box") {
-        ; read by shape (see BoxScan): no colours to match
-        d := BoxScan(b, b.geo)
-        if !(d.bar && d.fish)
+    if (lib.HasOwnProp("kind") && (lib.kind = "box" || lib.kind = "caps")) {
+        ; read by shape (BoxScan, CapScan): no colours to match
+        q := {capRow: lib.kind = "caps" ? CapRow(b, b.geo) : 0, barW: 0, boxRow: 0, boxMiss: 0}
+        d := lib.kind = "box" ? BoxScan(b, b.geo, -1, q) : CapScan(b, b.geo, -1, q)
+        if !(d.bar && d.fish)            ; both: straight lines in scenery (dock planks) can pass for a bar
             return 0
-        p := FillProfile({name: CurRodName != "" ? CurRodName : lib.name, lib: lib.id, kind: "box"
-            , barW: (d.br - d.bl + 1) / b.w, id: "rod:" (CurRodName != "" ? CurRodName : lib.id)})
+        p := FillProfile({name: CurRodName != "" ? CurRodName : lib.name, lib: lib.id, kind: lib.kind
+            , barW: (d.br - d.bl + 1) / b.w, id: "rod:" (CurRodName != "" ? CurRodName : lib.id)
+            , capRow: q.capRow, boxRow: q.boxRow, notes: lib.HasOwnProp("notes") && lib.notes})
         ResetLut(p)
         return {prof: p, d: d}
     }
@@ -5292,7 +5328,7 @@ MatchPrecoded(b, geo) {
         if SessionLooks.Has(id) {
             p := FillProfile(SessionLooks[id])
             d := VisionScan(b, p)
-            if (d.bar && d.cover >= 0.75 && EdgesPresent(b, geo, p) != 0) {
+            if (d.bar && d.cover >= 0.75 && (p.kind != "" || EdgesPresent(b, geo, p) != 0)) {
                 sc := d.cover + (d.fish ? 0.2 : 0)
                 if (sc > bestScore)
                     best := {prof: p, d: d}, bestScore := sc, bestId := id
@@ -5612,14 +5648,69 @@ BandCopy(b) {
 ; full height of the reel, and the fish is a black capsule that sticks out
 ; above and below that box. Measured on a real Noiseform reel.
 ;------------------------------------------------------------------------------
-BoxScan(b, geo, predFish := -1, p := 0) {
-    barW := p ? p.barW : 0
-    w := b.w, cols := b.cols, bits := b.bits, st := b.stride
+BoxScan(b, geo, predFish := -1, p := 0, now := -1) {
+    global ShapeWhy
+    w := b.w, barW := p ? p.barW : 0, minH := Max(12, Round(geo.ih * 0.3))
+    now := now >= 0 ? now : A_TickCount / 1000
+    ; The bar can't jump across the track between looks: once it's being
+    ; followed, only sides near where it just was count. (Zones drawn over
+    ; the bar can hide a side, and a still pair of lines elsewhere can be
+    ; the right distance apart.)
+    near := -1, reach := 0
+    if (p && p.HasOwnProp("boxPrev") && p.boxPrev >= 0 && p.HasOwnProp("boxPrevT"))
+        near := p.boxPrev, reach := w * (0.04 + Min(1, Max(0, now - p.boxPrevT)))    ; about a track width a second
+    ; Dark lines inside a zone's picture, or at the track's own ends, aren't
+    ; bar sides (a zone drawn over the bar hides the real side there).
+    skip := [[0, w * 0.04], [w * 0.96, w]]
+    if (p && p.HasOwnProp("zoneRow") && p.zoneRow)
+        for z in FindZones(b, geo, p)
+            skip.Push([z.x - w * 0.065, z.x + w * 0.065])
     none := {bar: false, bl: -1, br: -1, fish: false, fx: -1, cover: 0, n: 0, fishCol: false}
-    ; the fish: a black capsule above and below the reel, same place in both
-    ; rows (its lower end reads a little wider in the glow)
-    off := Max(3, Round(geo.ih * 0.3))
-    up := BoxRuns(b, Max(0, geo.m - off), w), dn := BoxRuns(b, Min(b.h - 1, geo.m + geo.ih + off), w)
+    ; the row through the middle of the box: found by searching the band for
+    ; the tallest pair of black sides a bar-width apart, then kept (searched
+    ; again if it stops working), so it works wherever the reel area sits
+    row := (p && p.boxRow) ? p.boxRow : -1, pk := 0
+    if (row >= 0)
+        pk := BoxPick(b, row, w, minH, barW, near, reach, skip)
+    bl := -1, br := -1, top := -1, bot := -1
+    if pk
+        bl := pk.bl, br := pk.br, top := pk.top, bot := pk.bot
+    ; one side hidden (in the dark state a zone can cover it): once the reel
+    ; is running, the other side is one bar-width away, near its last place
+    if (!pk && row >= 0 && p && barW && p.HasOwnProp("boxPrev") && p.boxPrev >= 0) {  ; (width known)
+        bw := barW * w, bestD := Max(w * 0.05, reach)
+        for cx in BoxCands(b, row, w, skip) {
+            sp := BoxSpan(b, cx, row)
+            if (sp[2] - sp[1] < minH)
+                continue
+            for opt in [[cx, cx + bw], [cx - bw, cx]]
+                if (opt[1] >= -2 && opt[2] <= w + 1 && Abs((opt[1] + opt[2]) / 2 - p.boxPrev) < bestD)
+                    bestD := Abs((opt[1] + opt[2]) / 2 - p.boxPrev), bl := opt[1], br := opt[2], top := sp[1], bot := sp[2]
+        }
+    }
+    if (bl < 0 && (!p || !p.boxRow || ++p.boxMiss >= 8)) {       ; lost for a while: search anew
+        f := BoxFind(b, geo, barW)
+        if f {
+            pk := f.pk, bl := pk.bl, br := pk.br, top := pk.top, bot := pk.bot
+            if p
+                p.boxRow := f.row, p.boxMiss := 0
+        } else if p
+            p.boxMiss := 0
+    }
+    if (bl < 0)
+        ShapeWhy := "no two tall black bar sides a bar-width apart on the reel"
+    else if p {
+        p.boxMiss := 0
+        if (top >= 0 && bot - top >= minH)
+            p.boxH := bot - top
+    }
+    ; the fish: a black capsule of steady width just above and just below the
+    ; box (or the reel area, if the box wasn't found)
+    if (top >= 0)
+        off := Max(4, Round((bot - top) * 0.12)), yu := top - off, yd := bot + off
+    else
+        off := Max(3, Round(geo.ih * 0.3)), yu := geo.m - off, yd := geo.m + geo.ih + off
+    up := BoxRuns(b, Clamp(yu, 0, b.h - 1), w), dn := BoxRuns(b, Clamp(yd, 0, b.h - 1), w)
     fx := -1, fBest := 1e9, tol := Max(3, Round(w * 0.004))
     for u in up
         for v in dn {
@@ -5631,84 +5722,94 @@ BoxScan(b, geo, predFish := -1, p := 0) {
                 fBest := sc, fx := cen
         }
     none.fish := fx >= 0, none.fx := fx, none.fishCol := fx >= 0
-    ; the bar: thin dark runs across the middle rows are candidates for its sides
-    maxW := Max(4, Round(w * 0.005)), cands := [], rs := -1, x := 0
+    if (bl < 0)
+        return none
+    bl := Round(bl) + 2, br := Round(br) - 2
+    if p
+        p.boxPrev := (bl + br) / 2, p.boxPrevT := now
+    return {bar: true, bl: bl, br: br, fish: fx >= 0, fx: fx, cover: 1, n: br - bl + 1, fishCol: fx >= 0}
+}
+
+; The best pair of box sides along row y: the pair of thin black lines a
+; bar-width apart whose heights overlap the most (the bar's sides are the
+; tallest black lines on the reel; arrows and artwork are shorter). 0 if none.
+BoxPick(b, y, w, minH, barW, near := -1, reach := 0, skip := 0) {
+    cands := BoxCands(b, y, w, skip)
+    if (cands.Length < 2 || cands.Length > 40)
+        return 0
+    want := barW ? barW * w : w * 0.30
+    ; Noiseform's bar is 30% of the track: widths far from that are
+    ; strongly discounted (dark streaks in its artwork can be tall)
+    lo := barW ? (barW - 0.05) * w : w * 0.24, hi := barW ? (barW + 0.05) * w : w * 0.36
+    spans := Map(), best := 0
+    for i, a in cands
+        for j, z in cands {
+            if (j <= i || z - a < lo || z - a > hi || (near >= 0 && Abs((a + z) / 2 - near) > reach))
+                continue
+            if !spans.Has(i)
+                spans[i] := BoxSpan(b, a, y)
+            if !spans.Has(j)
+                spans[j] := BoxSpan(b, z, y)
+            top := Max(spans[i][1], spans[j][1]), bot := Min(spans[i][2], spans[j][2]), h := bot - top
+            if (h < minH)
+                continue
+            sc := h * Max(0, 1 - 4 * Abs(z - a - want) / w)
+            if (near >= 0)
+                sc *= 1 - 0.5 * Abs((a + z) / 2 - near) / Max(1, reach)      ; nearer to where it was is better
+            if (!best || sc > best.sc)
+                best := {bl: a, br: z, top: top, bot: bot, h: h, sc: sc}
+        }
+    return best
+}
+
+; Searches the band for the tallest pair of box sides; returns the pair and
+; the row through the middle of that box, or 0.
+BoxFind(b, geo, barW := 0) {
+    w := b.w, minH := Max(12, Round(geo.ih * 0.3)), best := 0, y := 1
+    while (y < b.h - 1) {
+        pk := BoxPick(b, y, w, minH, barW)
+        if (pk && (!best || pk.sc > best.sc))
+            best := pk
+        y += 4
+    }
+    return best ? {pk: best, row: (best.top + best.bot) // 2} : 0
+}
+
+; Thin black runs along one band row: the centres of possible box sides.
+BoxCands(b, y, w, skip := 0) {
+    o := y * b.stride, maxW := Max(4, Round(w * 0.005)), out := [], rs := -1, x := 0, thr := 45
     while (x <= w) {
         dark := false
         if (x < w) {
-            c := NumGet(cols, x * 4, "UInt")
-            dark := ((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < 45
+            c := NumGet(b.bits, o + x * 4, "UInt")
+            dark := ((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < thr
         }
         if dark {
             if (rs < 0)
                 rs := x
         } else if (rs >= 0) {
-            cx := (rs + x - 1) // 2
-            if (x - rs <= maxW && cx > w * 0.01 && cx < w * 0.99)    ; not the track's own end caps
-                cands.Push(cx)
+            cx := (rs + x - 1) // 2, ok := (x - rs <= maxW && cx > w * 0.01 && cx < w * 0.99)
+            if (ok && IsObject(skip))
+                for sk in skip
+                    if (cx >= sk[1] && cx <= sk[2])
+                        ok := false
+            if ok
+                out.Push(cx)
             rs := -1
         }
         x++
     }
-    if (cands.Length < 1 || cands.Length > 40)
-        return none
-    ; 2. how tall each is: the sides run the full height of the box
-    spans := []
-    for cx in cands
-        spans.Push(BoxSpan(b, cx, geo.r2))
-    ; Both sides must cover the reel box's rows top to bottom (the arrows
-    ; fill only the middle). A side next to a dark area can read taller than
-    ; it is, so heights aren't compared; the width closest to the bar's wins.
-    want := barW ? barW * w : w * 0.30
-    best := 1e9, bi := 0, bj := 0
-    for i, a in spans {
-        if (a[1] > geo.m + 2 || a[2] < geo.m + geo.ih - 2)
-            continue
-        for j, z in spans {
-            if (j <= i || z[1] > geo.m + 2 || z[2] < geo.m + geo.ih - 2)
-                continue
-            gap := cands[j] - cands[i]
-            lo := barW ? (barW - 0.08) * w : w * 0.22, hi := barW ? (barW + 0.08) * w : w * 0.40
-            if (gap < lo || gap > hi)
-                continue
-            sc := Abs(gap - want)
-            if (sc < best)
-                best := sc, bi := i, bj := j
-        }
-    }
-    ; One side hidden (in the dark state a zone can cover it): once the reel
-    ; is running, the bar's width and last place are known, so the other
-    ; side is one bar-width away, on whichever side keeps it near its last place.
-    if (!bi && p && barW && p.HasOwnProp("boxPrev") && p.boxPrev >= 0) {
-        bw := barW * w, bestD := w * 0.15
-        for i, a in spans {
-            if (a[1] > geo.m + 2 || a[2] < geo.m + geo.ih - 2)
-                continue
-            for o in [[cands[i], cands[i] + bw], [cands[i] - bw, cands[i]]] {
-                if (o[1] < -2 || o[2] > w + 1)
-                    continue
-                dd := Abs((o[1] + o[2]) / 2 - p.boxPrev)
-                if (dd < bestD)
-                    bestD := dd, bl := Round(o[1]) + 2, br := Round(o[2]) - 2, bi := -1
-            }
-        }
-    }
-    if !bi
-        return none
-    if (bi > 0)
-        bl := cands[bi] + 2, br := cands[bj] - 2
-    if p
-        p.boxPrev := (bl + br) / 2
-    return {bar: true, bl: bl, br: br, fish: fx >= 0, fx: fx, cover: 1, n: br - bl + 1, fishCol: fx >= 0}
+    return out
 }
+
 
 ; Top and bottom rows of the black line through (x, y), bridging tiny gaps.
 BoxSpan(b, x, y) {
-    bits := b.bits, st := b.stride, o := x * 4, top := y, bot := y, t := y
+    bits := b.bits, st := b.stride, o := x * 4, top := y, bot := y, t := y, thr := 45
     while (t > 0) {
         t--
         c := NumGet(bits, t * st + o, "UInt")
-        if (((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < 45)
+        if (((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < thr)
             top := t
         else if (top - t > 2)
             break
@@ -5717,7 +5818,7 @@ BoxSpan(b, x, y) {
     while (t < b.h - 1) {
         t++
         c := NumGet(bits, t * st + o, "UInt")
-        if (((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < 45)
+        if (((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < thr)
             bot := t
         else if (t - bot > 2)
             break
@@ -5727,13 +5828,13 @@ BoxSpan(b, x, y) {
 
 ; Dark runs of fish width along row y: [[centre, width], ...].
 BoxRuns(b, y, w) {
-    bits := b.bits, o := y * b.stride, runs := [], rs := -1, x := 0
+    bits := b.bits, o := y * b.stride, runs := [], rs := -1, x := 0, thr := RowDark(b, y)
     lo := Max(3, Round(w * 0.004)), hi := Max(8, Round(w * 0.025))
     while (x <= w) {
         dark := false
         if (x < w) {
             c := NumGet(bits, o + x * 4, "UInt")
-            dark := ((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < 45
+            dark := ((((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) < thr
         }
         if dark {
             if (rs < 0)
@@ -5747,6 +5848,524 @@ BoxRuns(b, y, w) {
         x++
     }
     return runs
+}
+
+;------------------------------------------------------------------------------
+; Pinion's Aria, read by shape. Along the tube's middle row the bar's two end
+; caps each show a thin near-white highlight, in both of the bar's colours
+; (it darkens when the fish leaves it), and the fish is a wider white
+; capsule. Measured on a real Pinion's Aria reel: caps 4 px, fish ~24 px,
+; caps 30% of the track apart.
+;------------------------------------------------------------------------------
+CapWhite(c) => ((c >> 16) & 255) >= 216 && ((c >> 8) & 255) >= 216 && (c & 255) >= 216
+; A cap's highlight: bright, whatever its tint (the bar is blue, dark blue or,
+; with the fish outside it, red, and the highlights take on that tint).
+CapBright(c) => Max((c >> 16) & 255, (c >> 8) & 255, c & 255) >= 200 && Min((c >> 16) & 255, (c >> 8) & 255, c & 255) >= 140
+
+; How tall the bright line through (x, y) is: the fish's white core is tall,
+; the 水 symbol printed on the bar is short.
+BrightSpan(b, x, y) {
+    top := y, bot := y, t := y, o := x * 4
+    while (t > 0) {
+        t--
+        if CapBright(NumGet(b.bits, t * b.stride + o, "UInt"))
+            top := t
+        else if (top - t > 3)
+            break
+    }
+    t := y
+    while (t < b.h - 1) {
+        t++
+        if CapBright(NumGet(b.bits, t * b.stride + o, "UInt"))
+            bot := t
+        else if (t - bot > 3)
+            break
+    }
+    return bot - top
+}
+
+; The band row where the caps' highlights show (the reel box may not sit
+; centred on the tube): the row nearest the box's middle where a bar and a
+; fish both read, else one where a bar reads.
+CapRow(b, geo) {
+    barOnly := 0
+    Loop geo.ih + 1 {
+        k := A_Index - 1, y := geo.r2 + ((k & 1) ? (k + 1) // 2 : -(k // 2))
+        if (y < geo.m || y > geo.m + geo.ih)
+            continue
+        d := CapScan(b, geo, -1, {capRow: y, barW: 0})
+        if (d.bar && d.fish)
+            return y
+        if (d.bar && !barOnly)
+            barOnly := y
+    }
+    return barOnly ? barOnly : geo.r2
+}
+
+CapScan(b, geo, predFish := -1, p := 0) {
+    global ShapeWhy
+    w := b.w, bits := b.bits, barW := p ? p.barW : 0
+    row := (p && p.capRow) ? p.capRow : geo.r2, o := row * b.stride, fishH := Max(12, Round(geo.ih * 0.3))
+    ; the highlights sit on a narrow band of rows, which shifts a little with
+    ; the bar's colour: read the chosen row and one a little above and below
+    oU := Max(0, row - 3) * b.stride, oD := Min(b.h - 1, row + 3) * b.stride
+    none := {bar: false, bl: -1, br: -1, fish: false, fx: -1, cover: 0, n: 0, fishCol: false}
+    maxCap := Max(4, Round(w * 0.005)), fLo := Max(6, Round(w * 0.008)), fHi := Max(12, Round(w * 0.03))
+    caps := [], fishes := [], rs := -1, x := 0
+    while (x <= w) {
+        on := false
+        if (x < w) {
+            on := CapBright(NumGet(bits, o + x * 4, "UInt")) || CapBright(NumGet(bits, oU + x * 4, "UInt")) || CapBright(NumGet(bits, oD + x * 4, "UInt"))
+        }
+        if on {
+            if (rs < 0)
+                rs := x
+        } else if (rs >= 0) {
+            n := x - rs, cx := rs + (n - 1) / 2
+            if (n <= maxCap && cx > w * 0.01 && cx < w * 0.99)
+                caps.Push(cx)
+            else if (n >= fLo && n <= fHi && BrightSpan(b, Round(cx), row) >= fishH)
+                fishes.Push(cx)
+            rs := -1
+        }
+        x++
+    }
+    fx := -1, fb := 1e9
+    for f in fishes {
+        sc := predFish >= 0 ? Abs(f - predFish) : 0
+        if (sc < fb)
+            fb := sc, fx := f
+    }
+    none.fish := fx >= 0, none.fx := fx, none.fishCol := fx >= 0
+    ; once the reel is running its width is known and held closely, and the
+    ; pair nearest where the bar just was wins (strokes of the 水 symbol and
+    ; sparkles are thin and bright too)
+    ; the width that counts is the median of the last good readings (the
+    ; first reading can be off), held within 2.5% of the reel either side
+    if (p && p.HasOwnProp("capWs") && p.capWs.Length >= 5)
+        barW := ZMedian(p.capWs) / w
+    want := barW ? barW * w : w * 0.285
+    lo := barW ? (barW - 0.025) * w : w * 0.22, hi := barW ? (barW + 0.025) * w : w * 0.40
+    prev := (p && p.HasOwnProp("boxPrev") && p.boxPrev >= 0) ? p.boxPrev : -1
+    bl := -1, br := -1, best := 1e9
+    for i, a in caps
+        for j, z in caps
+            if (j > i && z - a >= lo && z - a <= hi) {
+                sc := Abs(z - a - want) + (prev >= 0 ? 0.25 * Abs((a + z) / 2 - prev) : 0)
+                if (sc < best)
+                    best := sc, bl := a, br := z
+            }
+    ; one cap hidden (the fish passing over it): the other is a bar-width away
+    if (bl < 0 && p && barW && p.HasOwnProp("boxPrev") && p.boxPrev >= 0) {
+        bw := barW * w, bestD := w * 0.15
+        for a in caps
+            for opt in [[a, a + bw], [a - bw, a]]
+                if (opt[1] >= -2 && opt[2] <= w + 1 && Abs((opt[1] + opt[2]) / 2 - p.boxPrev) < bestD)
+                    bestD := Abs((opt[1] + opt[2]) / 2 - p.boxPrev), bl := opt[1], br := opt[2]
+    }
+    if (bl < 0) {
+        ShapeWhy := Format("{} end-cap highlight(s) on the reel, but no two a bar-width apart", caps.Length)
+        return none
+    }
+    if p {
+        p.boxPrev := (bl + br) / 2
+        if (best < 1e9) {                                    ; a real pair (not placed from one cap)
+            if !p.HasOwnProp("capWs")
+                p.capWs := []
+            p.capWs.Push(Round(br - bl))
+            if (p.capWs.Length > 15)
+                p.capWs.RemoveAt(1)
+        }
+    }
+    bl := Round(bl) + 3, br := Round(br) - 3
+    return {bar: true, bl: bl, br: br, fish: fx >= 0, fx: fx, cover: 1, n: br - bl + 1, fishCol: fx >= 0}
+}
+
+;------------------------------------------------------------------------------
+; Pinion's Aria notes: white 水 symbols fall straight down onto the reel
+; (about 1.2 s from the top of the screen at 4K). Three thin rows high above
+; the reel are watched; a note counts when it crosses one row and then the
+; next one down on time, which a still white object never does. Its landing
+; time and place are predicted, and the bar is aimed to cover it while
+; keeping the fish inside when both fit.
+;------------------------------------------------------------------------------
+class NoteWatch {
+    static rows := [], seen := [], notes := [], geo := 0, lastT := 0
+    ; Seven rows from high on the screen down to just above the reel (in
+    ; reel-box heights above the band's top; at 4K a note falls from about
+    ; 22 box-heights up in 1.2 s), so a note is seen about a second early.
+    static Setup(geo) {
+        this.rows := [], this.seen := [], this.notes := [], this.geo := geo, this.lastT := 0
+        for k in [22, 19, 16, 13, 10, 7, 4] {
+            y := geo.y - k * geo.ih
+            if (y < 0)
+                continue
+            this.rows.Push({y: y, grab: BandGrab(geo.w, 1), prev: []})
+        }
+    }
+    ; Scans the rows now (live, about 30 times a second) or given row objects (replay).
+    static Update(now, rows := 0) {
+        if !IsObject(rows) {
+            if (now - this.lastT < 0.03)
+                return
+            rows := this.rows
+            for r in rows
+                r.grab.Grab(this.geo.x, r.y)
+        }
+        this.lastT := now
+        v0 := 21.7 * this.geo.ih                     ; typical fall speed, px/s (measured at 4K)
+        landY := this.geo.y + this.geo.m + this.geo.ih // 2, near := this.geo.w * 0.02
+        for k, r in rows {
+            runs := NoteRuns(r.grab, this.geo.w)
+            for x in runs {
+                fresh := true
+                for q in r.prev
+                    if (Abs(q - x) < near)
+                        fresh := false
+                if !fresh
+                    continue
+                ; a note entering this row: it must have crossed a higher row
+                ; above it at falling speed (still white things never do)
+                best := 0
+                for s in this.seen
+                    if (s.k < k && Abs(s.x - x) < near) {
+                        dy := r.y - rows[s.k].y, dt := now - s.t, exp := dy / v0
+                        if (dt > 0.4 * exp && dt < 2.0 * exp + 0.1 && (!best || s.t > best.t))
+                            best := s
+                    }
+                this.seen.Push({k: k, x: x, t: now})
+                if !best
+                    continue
+                ; notes speed up as they fall, so the speed measured up here is
+                ; low; landing is estimated a little early (arriving early is safe)
+                v := 1.25 * Clamp((r.y - rows[best.k].y) / Max(0.01, now - best.t), 0.5 * v0, 2.5 * v0)
+                tl := now + (landY - r.y) / v
+                dup := false
+                for n in this.notes
+                    if (Abs(n.x - x) < near * 2 && Abs(n.t - tl) < 0.6)
+                        n.t := tl, n.x := x, dup := true
+                if !dup
+                    this.notes.Push({x: x, t: tl})
+            }
+            r.prev := runs
+        }
+        keep := []
+        for s in this.seen
+            if (now - s.t < 2.0)
+                keep.Push(s)
+        this.seen := keep, keep := []
+        for n in this.notes
+            if (n.t > now - 0.1)
+                keep.Push(n)
+        this.notes := keep
+    }
+    ; Where the bar's centre should be now (band x), or -1 to follow the fish.
+    ; Notes come first, but not at once: until the bar must leave, it keeps the
+    ; fish and leans toward the note; it leaves just in time to reach it, and
+    ; covers both when they fit.
+    static Target(now, d) {
+        if !d.bar
+            return -1
+        soon := 0
+        for n in this.notes
+            if (n.t > now - 0.05 && n.t - now < 1.6 && (!soon || n.t < soon.t))
+                soon := n
+        if !soon
+            return -1
+        bw := d.br - d.bl, r := bw / 2 - 0.12 * bw, c := (d.bl + d.br) / 2
+        fx := d.fish ? d.fx : c
+        goal := Abs(fx - soon.x) <= 2 * r ? Clamp(fx, soon.x - r, soon.x + r)   ; note and fish both in the bar
+            : soon.x + (fx > soon.x ? r : -r)                                   ; the note, as near the fish as it can be
+        travel := Abs(goal - c) / (0.45 * this.geo.w) + 0.15                    ; a cautious bar speed, plus reaction
+        if (soon.t - now <= travel)
+            return goal                                                         ; time to go
+        return d.fish ? Clamp(soon.x, fx - r, fx + r) : -1                      ; not yet: keep the fish, lean toward the note
+    }
+}
+
+; White runs of note width along a one-row grab: their centres.
+NoteRuns(g, w) {
+    runs := [], rs := -1, x := 0, lo := Max(6, Round(w * 0.01)), hi := Round(w * 0.06)
+    while (x <= w) {
+        on := x < w && CapWhite(NumGet(g.bits, x * 4, "UInt"))
+        if (on && rs < 0)
+            rs := x
+        else if (!on && rs >= 0) {
+            if (x - rs >= lo && x - rs <= hi)
+                runs.Push(rs + (x - rs - 1) / 2)
+            rs := -1
+        }
+        x++
+    }
+    return runs
+}
+
+;------------------------------------------------------------------------------
+; Noiseform zones. Before three zones appear on the track, a big see-through
+; copy of the correct one flashes three times in the middle of the screen: a
+; dark triangle, a green circle or a light-grey square. The zones on the track
+; carry the same colours around their white icons. The flash is read on two
+; rings of points around the middle of the screen (the character stands in
+; the middle and its glow keeps changing, so only the rings are read, each
+; compared with the last second); the bar is then taken to the zone of that
+; colour until the beam strikes. Measured on a real Noiseform recording:
+; flashes 0.3 s apart, zones ~0.5 s after the last one, the beam 0.5-1 s later.
+;------------------------------------------------------------------------------
+class ZoneWatch {
+    static grab := 0, pts := [], hist := [], spikes := [], want := "", wantAt := 0, zonesAt := 0, lastT := 0, gx := 0, gy := 0
+    static votes := Map(), lockX := -1
+    static Setup(cr) {
+        h := cr.h, side := 2 * Round(0.125 * h) + 8
+        this.gx := cr.x + cr.w // 2 - side // 2, this.gy := cr.y + Round(0.5046 * h) - side // 2
+        this.grab := BandGrab(side, side)
+        this.Points(side // 2, side // 2, h)
+    }
+    static Points(cx, cy, h) {
+        this.pts := [], this.hist := [], this.spikes := [], this.want := "", this.wantAt := 0, this.zonesAt := 0, this.lastT := 0
+        this.votes := Map(), this.lockX := -1
+        for rf in [0.125, 0.10]
+            Loop 48 {
+                a := 2 * 3.14159265 * (A_Index - 1) / 48
+                this.pts.Push([cx + Round(rf * h * Cos(a)), cy + Round(rf * h * Sin(a))])
+            }
+    }
+    ; One look at the middle of the screen (g: a grab to read instead, for replay).
+    static Update(now, g := 0) {
+        global CurRod
+        if (!IsObject(g) && now - this.lastT < 0.028)
+            return
+        this.lastT := now
+        if !IsObject(g) {
+            this.grab.Grab(this.gx, this.gy)
+            g := this.grab
+        }
+        nG := 0, nK := 0, nW := 0
+        for pt in this.pts {
+            c := NumGet(g.bits, pt[2] * g.stride + pt[1] * 4, "UInt")
+            r := (c >> 16) & 255, gg := (c >> 8) & 255, bb := c & 255
+            mx := Max(r, gg, bb), mn := Min(r, gg, bb)
+            nG += (gg - Max(r, bb) > 50 && gg > 150)
+            nK += (((2 * r + 5 * gg + bb) >> 3) < 40)
+            nW += (mn >= 140 && mx - mn < 45)
+        }
+        cnt := [nG, nK, nW]
+        if (this.hist.Length >= 11) {
+            for k, name in ["green", "dark", "gray"] {
+                v := []
+                Loop this.hist.Length - 3
+                    v.Push(this.hist[A_Index][k])
+                if (cnt[k] - ZMedian(v) >= 25) {
+                    last := 0
+                    for s in this.spikes
+                        if (s.k = name)
+                            last := s
+                    if (last && now - last.t <= 0.15)
+                        last.t := now                     ; the same flash, still showing
+                    else
+                        this.spikes.Push({k: name, t: now})
+                }
+            }
+        }
+        this.hist.Push(cnt)
+        if (this.hist.Length > 33)
+            this.hist.RemoveAt(1)
+        keep := []
+        for s in this.spikes
+            if (now - s.t < 1.2)
+                keep.Push(s)
+        this.spikes := keep
+        ; two flashes of one colour: that colour's zone is the one to take
+        ; at night most of the ring is dark already: a dark flash can't be told
+        ; apart (and fading flashes look like one), so only green and grey count
+        night := false
+        if (this.hist.Length >= 11) {
+            v := []
+            for h in this.hist
+                v.Push(h[2])
+            night := ZMedian(v) > 0.6 * this.pts.Length
+        }
+        for name in ["green", "dark", "gray"] {
+            if (name = "dark" && night)
+                continue
+            n := 0
+            for s in this.spikes
+                n += (s.k = name)
+            ; one decision holds until its zones are gone (or 3.5 s pass)
+            if (n >= 2 && this.want = "" || n >= 2 && now - this.wantAt > 3.5)
+                this.want := name, this.wantAt := now, this.zonesAt := 0, this.votes := Map(), this.lockX := -1
+                    , LogVision("Noiseform zone: the " (name = "dark" ? "black triangle" : name = "green" ? "green circle" : "grey square") " flashed")
+        }
+    }
+    ; Where the bar's centre should go now (band x), or -1 to follow the fish.
+    static Target(now, b, geo, p := 0) {
+        if (this.want = "" || now - this.wantAt > 3.5)
+            return -1
+        if (p && (!p.zoneRow || (this.zonesAt && now - this.zonesAt > 0.12)))
+            if (r := ZoneRow(b, geo))
+                p.zoneRow := r
+        zs := FindZones(b, geo, p)
+        if zs.Length
+            this.zonesAt := now
+        else if (this.zonesAt && now - this.zonesAt > 0.25) {
+            this.want := "", this.lockX := -1             ; the beam has struck
+            if p
+                p.zoneRow := 0
+            LogVision("Noiseform zone: zones gone, back to the fish")
+            return -1
+        }
+        if (this.lockX >= 0)
+            return this.lockX                             ; zones don't move once they're up
+        ; a zone can read as the wrong colour for a frame (the fish or the dark
+        ; bar passing over it), so its place is confirmed over several looks
+        step := Max(8, b.w * 0.03)
+        for z in zs
+            if (z.k = this.want) {
+                k := Round(z.x / step)
+                v := this.votes.Has(k) ? this.votes[k] : {n: 0, sum: 0}
+                v.n++, v.sum += z.x, this.votes[k] := v
+            }
+        ; neighbouring bins count together
+        best := 0, bestK := 0, bestN := 0, secondN := 0
+        for k, v in this.votes {
+            n := v.n, sum := v.sum
+            for kk in [k - 1, k + 1]
+                if this.votes.Has(kk)
+                    n += this.votes[kk].n, sum += this.votes[kk].sum
+            if (n > bestN)
+                bestK := k, bestN := n, best := {n: n, sum: sum}
+        }
+        for k, v in this.votes
+            if (Abs(k - bestK) > 2)
+                secondN := Max(secondN, v.n)
+        if (best && bestN >= 3 && bestN >= 2 * secondN) {
+            this.lockX := best.sum / best.n
+            LogVision(Format("Noiseform zone: taking the bar to the {} zone at {:.0f}% of the reel", this.want = "dark" ? "black" : this.want = "green" ? "green" : "grey", 100 * this.lockX / b.w))
+        }
+        return this.lockX
+    }
+}
+
+ZMedian(v) {
+    if !v.Length
+        return 0
+    s := ""
+    for x in v
+        s .= Format("{:06}", x) "`n"
+    a := StrSplit(Sort(RTrim(s, "`n")), "`n")
+    return Integer(a[(a.Length + 1) // 2])
+}
+
+; The zones on the reel: each has a white icon in its middle and its colour
+; (dark, green or light grey) around it. [{x, k}] in band x.
+FindZones(b, geo, p := 0) {
+    w := b.w, zs := [], hiW := Max(8, Round(w * 0.03))
+    ; the row the zone icons sit on: found by searching once per zone event
+    ; (ZoneRow), else the reel area's middle
+    mid := (p && p.HasOwnProp("zoneRow") && p.zoneRow) ? p.zoneRow : geo.m + geo.ih // 2
+    hh := geo.ih
+    o1 := Clamp(mid - Round(hh * 0.05), 0, b.h - 1) * b.stride, o2 := Clamp(mid + Round(hh * 0.05), 0, b.h - 1) * b.stride
+    rs := -1, x := 0
+    while (x <= w) {
+        white := false
+        if (x < w) {
+            c := NumGet(b.bits, o1 + x * 4, "UInt")
+            white := ((c >> 16) & 255) > 200 && ((c >> 8) & 255) > 200 && (c & 255) > 200
+            if !white {
+                c := NumGet(b.bits, o2 + x * 4, "UInt")
+                white := ((c >> 16) & 255) > 200 && ((c >> 8) & 255) > 200 && (c & 255) > 200
+            }
+        }
+        if white {
+            if (rs < 0)
+                rs := x
+        } else if (rs >= 0) {
+            n := x - rs
+            if (n >= 4 && n <= hiW) {
+                cx := rs + (n - 1) // 2, k := ZoneColour(b, geo, cx, mid, hh)
+                if (k != "")
+                    zs.Push({x: cx, k: k})
+            }
+            rs := -1
+        }
+        x++
+    }
+    ; an icon can read as two pieces (the triangle and its "!"): pieces closer
+    ; than any two zones can be are one zone
+    out := []
+    for z in zs
+        if (out.Length && z.x - out[out.Length].x < w * 0.04 && z.k = out[out.Length].k)
+            out[out.Length].x := (out[out.Length].x + z.x) / 2
+        else
+            out.Push(z)
+    return out
+}
+
+ZoneColour(b, geo, cx, mid := -1, hh := 0) {
+    w := b.w, votes := Map("dark", 0, "green", 0, "gray", 0)
+    mid := mid >= 0 ? mid : geo.m + geo.ih // 2, hh := hh ? hh : geo.ih
+    for f in [-0.040, -0.035, -0.030, 0.030, 0.035, 0.040] {
+        x := cx + Round(f * w)
+        if (x < 0 || x >= w)
+            continue
+        for fy in [-0.3, 0, 0.3] {
+            c := NumGet(b.bits, Clamp(mid + Round(hh * fy), 0, b.h - 1) * b.stride + x * 4, "UInt")
+            r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255, lum := (2 * r + 5 * g + bb) >> 3
+            if (lum < 45)
+                votes["dark"]++
+            else if (g - Max(r, bb) > 40)
+                votes["green"]++
+            else if (Max(r, g, bb) - Min(r, g, bb) < 55 && lum >= 70 && lum <= 230)   ; grey (tinted at night)
+                votes["gray"]++
+        }
+    }
+    best := "", bn := 4
+    for k, n in votes
+        if (n > bn)
+            best := k, bn := n
+    return best
+}
+
+; How dark "dark" is along a row: 60% of the row's typical brightness, at
+; most 45. In daylight that's 45; at night, when the whole scene is dark,
+; only lines darker than their surroundings count. Sampled every 8th pixel.
+RowDark(b, y) {
+    o := y * b.stride, v := "", x := 0
+    while (x < b.w) {
+        c := NumGet(b.bits, o + x * 4, "UInt")
+        v .= Format("{:03}", (((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3) "`n"
+        x += 8
+    }
+    a := StrSplit(Sort(RTrim(v, "`n")), "`n")
+    return Clamp(Round(0.6 * Integer(a[(a.Length + 1) // 2])), 12, 45)
+}
+
+; The row the zone icons sit on: the row near the reel with the most
+; icon-sized white spots (the icons are the brightest things on the reel).
+; Searched once when a warning is being acted on; 0 if no row has two.
+ZoneRow(b, geo) {
+    w := b.w, hiW := Max(8, Round(w * 0.03)), best := 0, bestN := 1
+    y := Max(0, geo.m - Round(geo.ih * 0.3))
+    while (y <= Min(b.h - 1, geo.m + geo.ih + Round(geo.ih * 0.3))) {
+        o := y * b.stride, n := 0, rs := -1, x := 0
+        while (x <= w) {
+            white := false
+            if (x < w) {
+                c := NumGet(b.bits, o + x * 4, "UInt")
+                white := ((c >> 16) & 255) > 200 && ((c >> 8) & 255) > 200 && (c & 255) > 200
+            }
+            if (white && rs < 0)
+                rs := x
+            else if (!white && rs >= 0) {
+                n += (x - rs >= 4 && x - rs <= hiW)
+                rs := -1
+            }
+            x++
+        }
+        if (n > bestN)
+            bestN := n, best := y
+        y += 2
+    }
+    return best
 }
 
 
@@ -6763,6 +7382,36 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+4.4.6
+- Pinion's Aria notes: seen about a second before they land (was a fifth of a second). The bar keeps the fish and leans toward the note, then leaves just in time to catch it, covering both when they fit.
+- Pinion's Aria bar: its width is taken from recent readings and held closely, so its position is steadier.
+
+4.4.5
+- Noiseform and Pinion's Aria: a reel no longer ends early while it's still up (their reels were being checked for an outline they don't have).
+- A Noiseform or Pinion's Aria reel now needs both its bar and its fish to start, so dock planks and other straight lines aren't taken for a reel.
+
+4.4.4
+- Pinion's Aria: the bar is still found when it turns red (the fish outside it), so a reel is no longer taken for over, or not noticed at all, while the bar is red. The 水 symbol on the bar is no longer mistaken for the fish.
+
+4.4.3
+- Noiseform at night: the bar, fish and zones are read against the darker scene, the zone finder looks where the bar actually is, and a zone warning can't be overridden by a false one.
+
+4.4.2
+- After a Noiseform zone or a Pinion's Aria note, the bar goes straight back to the fish: switching what the bar aims at no longer upsets the fish's tracking.
+
+4.4.1
+- Noiseform: zones no longer confuse where the bar is. A zone drawn over the bar hid one of its sides, and lines in the zone's picture were read as the bar, so the bar was pushed past the right zone.
+
+4.4.0
+- Noiseform zones: the warning that flashes in the middle of the screen is read (black triangle, green circle or grey square), and the bar is taken to the matching zone before the beam strikes.
+
+4.3.1
+- Noiseform: the reel is found wherever your reel area sits on it. If a reel still isn't recognized, the Detection log says why and a picture is saved to Snapshots\Unmatched.
+
+4.3.0
+- Pinion's Aria: the bar is read by its end caps, and it catches the falling notes while keeping the fish.
+- The rod name read from your hotbar now decides the reel style. A failed read keeps the last rod, so Noiseform no longer switches to Verdant Oath.
+
 4.2.3
 - Check for updates now shows its answer, and hover help shows on every page again.
 
@@ -6877,8 +7526,10 @@ EditDistance(a, b) {
 RodLibFor(name) {
     if (name = "")
         return ""
+    plain := (t) => RegExReplace(StrLower(t), "[^a-z ]")
     for lib in RodLib
-        if (lib.id != "standard" && EditDistance(name, lib.name) <= Max(1, StrLen(lib.name) // 8))
+        if (lib.id != "standard" && (EditDistance(name, lib.name) <= Max(1, StrLen(lib.name) // 8)
+            || InStr(plain(name), plain(lib.name))))           ; a skin or unknown word in front
             return lib.id
     return "standard"
 }
@@ -6949,11 +7600,11 @@ RodNameDone(text, problem) {
     RodReadBusy := false
     name := problem = "" ? ParseRodName(text) : ""
     RodReadLast := problem != "" ? "Couldn't read the rod: " problem "." : name = "" ? "Couldn't read a rod name in the rod's hotbar slot." : ""
+    ; a failed read keeps the last good name: the rod doesn't change because
+    ; the text reader missed once
     if (name != "" && name != CurRodName) {
         CurRodName := name, CurRodLib := RodLibFor(name)
         LogEvent("Rod: " name)
-    } else if (name = "") {
-        CurRodName := "", CurRodLib := ""
     }
     try RodsChanged()
     try Hud.Update()
@@ -6987,6 +7638,27 @@ try {
 }
 )", path, "UTF-8")
     return path
+}
+
+; A picture of a reel no built-in style fitted, at most one a minute, the
+; last ten kept in Snapshots\Unmatched, so it can be looked at later.
+SaveUnmatched(b) {
+    global UnmatchedAt
+    if (A_TickCount - UnmatchedAt < 60000)
+        return
+    UnmatchedAt := A_TickCount
+    dir := A_ScriptDir "\Snapshots\Unmatched"
+    try {
+        DirCreate(dir)
+        name := dir "\" FormatTime(, "yyyy-MM-dd_HH-mm-ss") ".png"
+        if SavePng(b.bmp, name)
+            LogVision("Saved a picture of it: Snapshots\Unmatched")
+        files := []
+        Loop Files, dir "\*.png"
+            files.Push(A_LoopFileFullPath)
+        while (files.Length > 10)
+            FileDelete(files.RemoveAt(1))
+    }
 }
 
 
