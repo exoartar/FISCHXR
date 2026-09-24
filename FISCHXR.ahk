@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.4.6"
+APP_VER := "4.4.7"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -839,7 +839,7 @@ Reel(b, geo, base, r) {
     global CurRod, LiveD, LiveP, LiveEp, LiveT, LiveRate
     p := r.prof, w := b.w
     if p.notes
-        NoteWatch.Setup(geo)             ; Pinion's Aria: watch for falling notes
+        NoteWatch.Setup(geo, ClientRect(RobloxHwnd))   ; Pinion's Aria: watch the screen above the bar for notes
     if (p.kind = "box" && (zcr := ClientRect(RobloxHwnd)))
         ZoneWatch.Setup(zcr)             ; Noiseform: watch for the zone warning
     edge := w * Cfg["EdgeMargin"] / 100
@@ -4657,6 +4657,23 @@ Cleanup(reason, code) {
 ;==============================================================================
 
 ; Captures a block of rows around the reel area in one BitBlt.
+; The screen area of srcW x srcH shrunk by f into a small image, averaged by
+; Windows as it copies (HALFTONE), for looking at a large area quickly.
+class ShrinkGrab extends BandGrab {
+    __New(srcW, srcH, f) {
+        super.__New(Max(8, srcW // f), Max(3, srcH // f))
+        this.srcW := srcW, this.srcH := srcH
+        DllCall("SetStretchBltMode", "Ptr", this.dc, "Int", 4)
+        DllCall("SetBrushOrgEx", "Ptr", this.dc, "Int", 0, "Int", 0, "Ptr", 0)
+    }
+    Grab(x, y) {
+        sdc := DllCall("GetDC", "Ptr", 0, "Ptr")
+        DllCall("StretchBlt", "Ptr", this.dc, "Int", 0, "Int", 0, "Int", this.w, "Int", this.h
+            , "Ptr", sdc, "Int", x, "Int", y, "Int", this.srcW, "Int", this.srcH, "UInt", 0x00CC0020)
+        DllCall("ReleaseDC", "Ptr", 0, "Ptr", sdc)
+    }
+}
+
 class BandGrab {
     __New(w, h) {
         this.w := w := Max(8, Integer(w)), this.h := h := Max(3, Integer(h)), this.stride := w * 4
@@ -5990,74 +6007,90 @@ CapScan(b, geo, predFish := -1, p := 0) {
 ; keeping the fish inside when both fit.
 ;------------------------------------------------------------------------------
 class NoteWatch {
-    static rows := [], seen := [], notes := [], geo := 0, lastT := 0
-    ; Seven rows from high on the screen down to just above the reel (in
-    ; reel-box heights above the band's top; at 4K a note falls from about
-    ; 22 box-heights up in 1.2 s), so a note is seen about a second early.
-    static Setup(geo) {
-        this.rows := [], this.seen := [], this.notes := [], this.geo := geo, this.lastT := 0
-        for k in [22, 19, 16, 13, 10, 7, 4] {
-            y := geo.y - k * geo.ih
-            if (y < 0)
-                continue
-            this.rows.Push({y: y, grab: BandGrab(geo.w, 1), prev: []})
-        }
+    static grab := 0, geo := 0, tracks := [], notes := [], lastT := 0, f := 12, ax := 0, ay := 0, aw := 0, ah := 0, landY := 0
+    ; The whole screen above the bar, shrunk so each cell averages f x f
+    ; screen pixels (a note stays about five cells tall at any resolution):
+    ; from near the top of the Roblox window down to just above the fish's
+    ; ornament, across the reel's width.
+    static Setup(geo, cr := 0) {
+        top := cr ? cr.y + Round(cr.h * 0.05) : Max(0, geo.y - 26 * geo.ih)
+        this.Area(geo, top, Max(4, Round(geo.ih / 5)))
+        this.grab := ShrinkGrab(this.aw, this.ah, this.f)
     }
-    ; Scans the rows now (live, about 30 times a second) or given row objects (replay).
-    static Update(now, rows := 0) {
-        if !IsObject(rows) {
-            if (now - this.lastT < 0.03)
+    static Area(geo, top, f) {
+        this.geo := geo, this.f := f, this.ax := geo.x, this.aw := geo.w
+        this.ay := top, this.ah := Max(f * 4, geo.y - 2 * geo.ih - top)
+        this.landY := geo.y + geo.m + geo.ih // 2
+        this.tracks := [], this.notes := [], this.lastT := 0
+    }
+    ; One look (live about 20 times a second; g: a shrunken image, for replay).
+    static Update(now, g := 0) {
+        if !IsObject(g) {
+            if (!this.grab || now - this.lastT < 0.045)
                 return
-            rows := this.rows
-            for r in rows
-                r.grab.Grab(this.geo.x, r.y)
+            this.grab.Grab(this.ax, this.ay)
+            g := this.grab
         }
+        dt := this.lastT ? now - this.lastT : 0.05
         this.lastT := now
-        v0 := 21.7 * this.geo.ih                     ; typical fall speed, px/s (measured at 4K)
-        landY := this.geo.y + this.geo.m + this.geo.ih // 2, near := this.geo.w * 0.02
-        for k, r in rows {
-            runs := NoteRuns(r.grab, this.geo.w)
-            for x in runs {
-                fresh := true
-                for q in r.prev
-                    if (Abs(q - x) < near)
-                        fresh := false
-                if !fresh
-                    continue
-                ; a note entering this row: it must have crossed a higher row
-                ; above it at falling speed (still white things never do)
-                best := 0
-                for s in this.seen
-                    if (s.k < k && Abs(s.x - x) < near) {
-                        dy := r.y - rows[s.k].y, dt := now - s.t, exp := dy / v0
-                        if (dt > 0.4 * exp && dt < 2.0 * exp + 0.1 && (!best || s.t > best.t))
-                            best := s
-                    }
-                this.seen.Push({k: k, x: x, t: now})
-                if !best
-                    continue
-                ; notes speed up as they fall, so the speed measured up here is
-                ; low; landing is estimated a little early (arriving early is safe)
-                v := 1.25 * Clamp((r.y - rows[best.k].y) / Max(0.01, now - best.t), 0.5 * v0, 2.5 * v0)
-                tl := now + (landY - r.y) / v
-                dup := false
-                for n in this.notes
-                    if (Abs(n.x - x) < near * 2 && Abs(n.t - tl) < 0.6)
-                        n.t := tl, n.x := x, dup := true
-                if !dup
-                    this.notes.Push({x: x, t: tl})
+        f := this.f, w := this.geo.w
+        ; bright, colourless cells (notes are white); every other row is enough
+        blobs := [], y := 0
+        while (y < g.h) {
+            o := y * g.stride, x := 0
+            while (x < g.w) {
+                c := NumGet(g.bits, o + x * 4, "UInt")
+                r := (c >> 16) & 255, gg := (c >> 8) & 255, bb := c & 255, mn := Min(r, gg, bb)
+                if (mn >= 120 && Max(r, gg, bb) - mn <= 70) {
+                    hit := 0
+                    for bl in blobs
+                        if (Abs(bl.x / bl.n - x) <= 3 && Abs(bl.y / bl.n - y) <= 4) {
+                            hit := bl
+                            break
+                        }
+                    if hit
+                        hit.x += x, hit.y += y, hit.n++
+                    else
+                        blobs.Push({x: x, y: y, n: 1})
+                }
+                x++
             }
-            r.prev := runs
+            y += 2
+        }
+        ; follow each blob: a note falls straight down, speeding up
+        v0 := 21.7 * this.geo.ih, reachX := Max(3 * f, w * 0.02)
+        for bl in blobs {
+            if (bl.n > 30)
+                continue                                   ; far bigger than a note
+            X := this.ax + (bl.x / bl.n + 0.5) * f, Y := this.ay + (bl.y / bl.n + 1) * f
+            best := 0, bd := 1e9
+            for tr in this.tracks {
+                dy := Y - tr.y, lo := -2 * f, hi := 3 * v0 * (now - tr.t) + 3 * f
+                if (tr.t < now && Abs(X - tr.x) <= reachX && dy >= lo && dy <= hi && Abs(X - tr.x) + Abs(dy) / 4 < bd)
+                    bd := Abs(X - tr.x) + Abs(dy) / 4, best := tr
+            }
+            if best {
+                vy := (Y - best.y) / Max(0.01, now - best.t)
+                best.vy := best.n = 1 ? vy : 0.5 * best.vy + 0.5 * vy
+                best.x := X, best.y := Y, best.t := now, best.n++
+            } else
+                this.tracks.Push({x: X, y: Y, x0: X, y0: Y, t: now, vy: 0, n: 1})
         }
         keep := []
-        for s in this.seen
-            if (now - s.t < 2.0)
-                keep.Push(s)
-        this.seen := keep, keep := []
-        for n in this.notes
-            if (n.t > now - 0.1)
-                keep.Push(n)
-        this.notes := keep
+        for tr in this.tracks
+            if (now - tr.t < 0.25)
+                keep.Push(tr)
+        this.tracks := keep
+        ; notes: first seen near the top (where notes appear; the character
+        ; below can move too), seen three times, falling straight down at note
+        ; speed. They speed up as they fall (measured: about 19 reel-box
+        ; heights per second, per second), so landing allows for that.
+        this.notes := [], acc := 19 * this.geo.ih
+        for tr in this.tracks
+            if (tr.n >= 3 && tr.y0 < this.ay + 0.4 * this.ah && tr.vy > 0.25 * v0 && tr.vy < 3 * v0 && Abs(tr.x - tr.x0) < w * 0.04) {
+                dist := Max(0, this.landY - tr.y)
+                this.notes.Push({x: tr.x - this.ax, t: now + (Sqrt(tr.vy ** 2 + 2 * acc * dist) - tr.vy) / acc})
+            }
     }
     ; Where the bar's centre should be now (band x), or -1 to follow the fish.
     ; Notes come first, but not at once: until the bar must leave, it keeps the
@@ -7382,6 +7415,9 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+4.4.7
+- Pinion's Aria notes: the whole screen above the bar is watched, so every note is followed from where it appears, about a second before it lands, and where and when it will land is known.
+
 4.4.6
 - Pinion's Aria notes: seen about a second before they land (was a fifth of a second). The bar keeps the fish and leans toward the note, then leaves just in time to catch it, covering both when they fit.
 - Pinion's Aria bar: its width is taken from recent readings and held closely, so its position is steadier.

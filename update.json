@@ -1,6 +1,6 @@
 {
-  "version": "4.4.6",
+  "version": "4.4.7",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "aafc4a3ce6fd0371fc760d721b67a5c67ea531bc4a989c80db06bd3bfd255a85",
-  "notes": "Pinion's Aria: notes are seen about a second ahead; the bar keeps the fish until it has to leave, then catches the note. The bar's position is steadier."
+  "sha256": "9e5dd945b7835f49fa378caa80a7dc9a0ee5b9680cb0553aa1bf11600c2224a4",
+  "notes": "Pinion's Aria: the whole screen above the bar is watched for notes, so each is followed from where it appears and its landing is known about a second ahead."
 }
