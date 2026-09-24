@@ -1,6 +1,6 @@
 {
-  "version": "4.4.7",
+  "version": "4.4.8",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "9e5dd945b7835f49fa378caa80a7dc9a0ee5b9680cb0553aa1bf11600c2224a4",
-  "notes": "Pinion's Aria: the whole screen above the bar is watched for notes, so each is followed from where it appears and its landing is known about a second ahead."
+  "sha256": "2548544f14469c005bea0dafdd6f53d77fc7cc99805a4c94930c519e66b2588f",
+  "notes": "Pinion's Aria without a skin now works. The bar is followed as it widens with caught notes. The reel's opening splash is no longer taken for notes."
 }

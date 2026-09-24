@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.4.7"
+APP_VER := "4.4.8"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -190,6 +190,7 @@ RodLib := [
     {id: "departed",    name: "Remembrance (Departed)", fish: ["FFFFFF"], ft: 10, bar: ["474747"], bt: 8},
     {id: "migu",        name: "Migu Rod",               fish: ["F9D9D4", "FAD6CE", "F9D4C7", "F9D2C4", "F8D0B7"], ft: 10, bar: ["E9B681", "E0A66F", "D1935B"], bt: 8},
     {id: "pinion",      name: "Pinion's Aria",          kind: "caps", notes: true, fish: [], ft: 8, bar: [], bt: 8},
+    {id: "pinion_plain", alias: "pinion", name: "Pinion's Aria", kind: "lite", notes: true, fish: [], ft: 8, bar: [], bt: 8},
     {id: "noiseform",   name: "Noiseform",              kind: "box", fish: ["0C4125", "003820", "0D3A27"], ft: 8
         , bar: ["33A95F", "2C894D", "2AB778", "5CBD8C", "74C198", "60BC8E", "19B572", "010101"], bt: 10}
 ]
@@ -4757,7 +4758,7 @@ NewProfile(name, track, bar, fish, barW := 0) {
 FillProfile(p) {
     for k, v in Map("id", "", "name", "Rod", "track", [], "bar", [], "fish", [], "barW", 0
         , "tolT", 24, "tolB", 24, "tolF", 22, "edgeT", "", "edgeB", "", "sovereign", 0
-        , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0)
+        , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0, "trkT", 0, "trkB", 0)
         if !p.HasOwnProp(k)
             p.%k% := v
     return p
@@ -4798,6 +4799,8 @@ VisionScan(b, p, predFish := -1) {
         return BoxScan(b, b.geo, predFish, p)
     if (p.kind = "caps")
         return CapScan(b, b.geo, predFish, p)
+    if (p.kind = "lite")
+        return LiteScan(b, b.geo, predFish, p)
     w := b.w, cols := b.cols, lab := b.lab, lut := p.lut, covered := 0, x := 0
     while (x < w) {
         c := NumGet(cols, x * 4, "UInt")
@@ -5285,6 +5288,18 @@ ProbeLib(b, lib) {
     for h in lib.fish
         fishes.Push(Integer("0x" h))
     green := lib.HasOwnProp("greenBar") && lib.greenBar
+    if (lib.HasOwnProp("kind") && lib.kind = "lite") {
+        ; Pinion's Aria without a skin (see LiteScan)
+        q := {trkT: 0, trkB: 0, barW: 0}
+        d := LiteScan(b, b.geo, -1, q)
+        if !(d.bar && d.fish)
+            return 0
+        p := FillProfile({name: CurRodName != "" ? CurRodName : lib.name, lib: lib.id, kind: "lite"
+            , barW: (d.br - d.bl + 1) / b.w, id: "rod:" (CurRodName != "" ? CurRodName : lib.id)
+            , trkT: q.trkT, trkB: q.trkB, notes: true})
+        ResetLut(p)
+        return {prof: p, d: d}
+    }
     if (lib.HasOwnProp("kind") && (lib.kind = "box" || lib.kind = "caps")) {
         ; read by shape (BoxScan, CapScan): no colours to match
         q := {capRow: lib.kind = "caps" ? CapRow(b, b.geo) : 0, barW: 0, boxRow: 0, boxMiss: 0}
@@ -5335,8 +5350,12 @@ MatchLibrary(b) {
 ; reel is recognized at once.
 MatchPrecoded(b, geo) {
     ids := []
-    if (CurRodLib != "")
+    if (CurRodLib != "") {
         ids.Push(CurRodLib)
+        for l in RodLib
+            if (l.HasOwnProp("alias") && l.alias = CurRodLib)
+                ids.Push(l.id)                 ; the same rod's other look
+    }
     else
         for lib in RodLib
             ids.Push(lib.id)
@@ -5957,12 +5976,13 @@ CapScan(b, geo, predFish := -1, p := 0) {
     ; once the reel is running its width is known and held closely, and the
     ; pair nearest where the bar just was wins (strokes of the 水 symbol and
     ; sparkles are thin and bright too)
-    ; the width that counts is the median of the last good readings (the
-    ; first reading can be off), held within 2.5% of the reel either side
+    ; Pinion's Aria's bar widens as notes are caught and narrows when they're
+    ; missed, so the width isn't held to one value: the pair nearest the
+    ; recent median width wins, within 15% of it
     if (p && p.HasOwnProp("capWs") && p.capWs.Length >= 5)
         barW := ZMedian(p.capWs) / w
     want := barW ? barW * w : w * 0.285
-    lo := barW ? (barW - 0.025) * w : w * 0.22, hi := barW ? (barW + 0.025) * w : w * 0.40
+    lo := barW ? 0.85 * barW * w : w * 0.2, hi := barW ? 1.15 * barW * w : w * 0.6
     prev := (p && p.HasOwnProp("boxPrev") && p.boxPrev >= 0) ? p.boxPrev : -1
     bl := -1, br := -1, best := 1e9
     for i, a in caps
@@ -6007,7 +6027,7 @@ CapScan(b, geo, predFish := -1, p := 0) {
 ; keeping the fish inside when both fit.
 ;------------------------------------------------------------------------------
 class NoteWatch {
-    static grab := 0, geo := 0, tracks := [], notes := [], lastT := 0, f := 12, ax := 0, ay := 0, aw := 0, ah := 0, landY := 0
+    static grab := 0, geo := 0, tracks := [], notes := [], lastT := 0, f := 12, ax := 0, ay := 0, aw := 0, ah := 0, landY := 0, startT := 0
     ; The whole screen above the bar, shrunk so each cell averages f x f
     ; screen pixels (a note stays about five cells tall at any resolution):
     ; from near the top of the Roblox window down to just above the fish's
@@ -6021,7 +6041,7 @@ class NoteWatch {
         this.geo := geo, this.f := f, this.ax := geo.x, this.aw := geo.w
         this.ay := top, this.ah := Max(f * 4, geo.y - 2 * geo.ih - top)
         this.landY := geo.y + geo.m + geo.ih // 2
-        this.tracks := [], this.notes := [], this.lastT := 0
+        this.tracks := [], this.notes := [], this.lastT := 0, this.startT := 0
     }
     ; One look (live about 20 times a second; g: a shrunken image, for replay).
     static Update(now, g := 0) {
@@ -6033,6 +6053,8 @@ class NoteWatch {
         }
         dt := this.lastT ? now - this.lastT : 0.05
         this.lastT := now
+        if !this.startT
+            this.startT := now
         f := this.f, w := this.geo.w
         ; bright, colourless cells (notes are white); every other row is enough
         blobs := [], y := 0
@@ -6074,7 +6096,7 @@ class NoteWatch {
                 best.vy := best.n = 1 ? vy : 0.5 * best.vy + 0.5 * vy
                 best.x := X, best.y := Y, best.t := now, best.n++
             } else
-                this.tracks.Push({x: X, y: Y, x0: X, y0: Y, t: now, vy: 0, n: 1})
+                this.tracks.Push({x: X, y: Y, x0: X, y0: Y, t: now, t0: now, vy: 0, n: 1})
         }
         keep := []
         for tr in this.tracks
@@ -6087,7 +6109,9 @@ class NoteWatch {
         ; heights per second, per second), so landing allows for that.
         this.notes := [], acc := 19 * this.geo.ih
         for tr in this.tracks
-            if (tr.n >= 3 && tr.y0 < this.ay + 0.4 * this.ah && tr.vy > 0.25 * v0 && tr.vy < 3 * v0 && Abs(tr.x - tr.x0) < w * 0.04) {
+            ; (a reel opens with a splash washing down the screen: nothing first
+            ; seen in its first 0.8 s counts)
+            if (tr.n >= 3 && tr.t0 >= this.startT + 0.8 && tr.y0 < this.ay + 0.4 * this.ah && tr.vy > 0.25 * v0 && tr.vy < 3 * v0 && Abs(tr.x - tr.x0) < w * 0.04) {
                 dist := Max(0, this.landY - tr.y)
                 this.notes.Push({x: tr.x - this.ax, t: now + (Sqrt(tr.vy ** 2 + 2 * acc * dist) - tr.vy) / acc})
             }
@@ -6399,6 +6423,156 @@ ZoneRow(b, geo) {
         y += 2
     }
     return best
+}
+
+;------------------------------------------------------------------------------
+; Pinion's Aria without a skin. A pale tube; the bar is a rounded box a little
+; taller than the tube (pastel with the fish in it, dark red without, with a
+; light border either way), and the fish is a capsule taller still whose top
+; is a strong cyan. So on a row just above the tube and one just below, only
+; the bar and the fish show against the background: the bar as a bright run
+; a bar-width long, the fish as a narrow cyan run. Measured on a real reel.
+;------------------------------------------------------------------------------
+; Brightness of a pixel (0-255).
+Lum(c) => (((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3
+
+; The tube's top and bottom rows in the band: rows where one bright run
+; crosses most of the band, around the reel area's middle. [top, bottom] or 0.
+LiteRows(b, geo) {
+    long := []
+    y := 0
+    while (y < b.h) {
+        o := y * b.stride, best := 0, rs := -1, x := 0
+        while (x <= b.w) {
+            on := x < b.w && Lum(NumGet(b.bits, o + x * 4, "UInt")) >= 120
+            if (on && rs < 0)
+                rs := x
+            else if (!on && rs >= 0) {
+                best := Max(best, x - rs), rs := -1
+            }
+            x += 1
+        }
+        if (best >= b.w * 0.6)
+            long.Push(y)
+        y += 1
+    }
+    if (long.Length < 3)
+        return 0
+    ; the run of rows containing (or nearest) the reel area's middle
+    mid := geo.m + geo.ih // 2, top := long[1], bot := long[1], bestT := 0, bestB := 0, bestD := 1e9
+    for i, y in long {
+        if (i > 1 && y - long[i - 1] > 2)
+            top := y
+        bot := y
+        d := (mid >= top && mid <= bot) ? 0 : Min(Abs(mid - top), Abs(mid - bot))
+        if (d < bestD || (d = bestD && bot - top > bestB - bestT))
+            bestD := d, bestT := top, bestB := bot
+    }
+    return bestB - bestT >= 4 ? [bestT, bestB] : 0
+}
+
+; Bright runs along row y, a bar-width long: [[left, right], ...].
+LiteBarRuns(b, y, lo, hi) {
+    o := y * b.stride, v := "", x := 0
+    while (x < b.w) {
+        v .= Format("{:03}", Lum(NumGet(b.bits, o + x * 4, "UInt"))) "`n"
+        x += 8
+    }
+    a := StrSplit(Sort(RTrim(v, "`n")), "`n"), thr := Max(120, Integer(a[(a.Length + 1) // 2]) + 35)
+    out := [], rs := -1, gap := 0, x := 0
+    while (x <= b.w) {
+        on := x < b.w && Lum(NumGet(b.bits, o + x * 4, "UInt")) >= thr
+        if on {
+            if (rs < 0)
+                rs := x
+            gap := 0, last := x
+        } else if (rs >= 0 && ++gap > 3) {
+            if (last - rs + 1 >= lo && last - rs + 1 <= hi)
+                out.Push([rs, last])
+            rs := -1
+        }
+        x++
+    }
+    return out
+}
+
+LiteScan(b, geo, predFish := -1, p := 0) {
+    global ShapeWhy
+    w := b.w, none := {bar: false, bl: -1, br: -1, fish: false, fx: -1, cover: 0, n: 0, fishCol: false}
+    if (p && p.HasOwnProp("trkT") && p.trkT)
+        rows := [p.trkT, p.trkB]
+    else if (rows := LiteRows(b, geo)) {
+        if p
+            p.trkT := rows[1], p.trkB := rows[2]
+    } else {
+        ShapeWhy := "no pale tube across the reel"
+        return none
+    }
+    th := rows[2] - rows[1]
+    yU := Max(0, rows[1] - Max(2, Round(th * 0.1))), yD := Min(b.h - 1, rows[2] + Max(2, Round(th * 0.12)))
+    ; the bar widens as notes are caught and narrows when they're missed:
+    ; the run nearest the recent median width wins, within 15% of it
+    barW := p ? p.barW : 0
+    if (p && p.HasOwnProp("liteWs") && p.liteWs.Length >= 5)
+        barW := ZMedian(p.liteWs) / w
+    lo := barW ? 0.85 * barW * w : w * 0.2, hi := barW ? 1.15 * barW * w : w * 0.6
+    ; the fish: a narrow, strongly cyan run just above the tube
+    o := yU * b.stride, fishes := [], rs := -1, x := 0, fLo := Max(3, Round(w * 0.004)), fHi := Max(8, Round(w * 0.02))
+    while (x <= w) {
+        on := false
+        if (x < w) {
+            c := NumGet(b.bits, o + x * 4, "UInt")
+            on := (c & 255) >= 200 && (c & 255) - ((c >> 16) & 255) >= 120
+        }
+        if (on && rs < 0)
+            rs := x
+        else if (!on && rs >= 0) {
+            if (x - rs >= fLo && x - rs <= fHi)
+                fishes.Push(rs + (x - rs - 1) / 2)
+            rs := -1
+        }
+        x++
+    }
+    fx := -1, fb := 1e9
+    for f in fishes
+        if ((sc := predFish >= 0 ? Abs(f - predFish) : 0) < fb)
+            fb := sc, fx := f
+    none.fish := fx >= 0, none.fx := fx, none.fishCol := fx >= 0
+    ; the bar: the same bright run just above and just below the tube
+    up := LiteBarRuns(b, yU, lo, hi), dn := LiteBarRuns(b, yD, lo, hi)
+    prev := (p && p.HasOwnProp("boxPrev") && p.boxPrev >= 0) ? p.boxPrev : -1
+    bl := -1, br := -1, best := 1e9
+    for u in up
+        for v in dn {
+            ov := Min(u[2], v[2]) - Max(u[1], v[1])
+            if (ov < 0.7 * Min(u[2] - u[1], v[2] - v[1]))
+                continue
+            l := (u[1] + v[1]) / 2, r := (u[2] + v[2]) / 2
+            sc := (barW ? Abs(r - l - barW * w) : 0) + (prev >= 0 ? 0.25 * Abs((l + r) / 2 - prev) : 0)
+            if (!barW && (r - l < w * 0.2 || r - l > w * 0.6))
+                continue
+            if (sc < best)
+                best := sc, bl := l, br := r
+        }
+    if (bl < 0) {
+        ShapeWhy := Format("no bar-width bright box above and below the tube ({} / {} run(s))", up.Length, dn.Length)
+        if p {
+            p.liteMiss := (p.HasOwnProp("liteMiss") ? p.liteMiss : 0) + 1
+            if (p.liteMiss >= 8)
+                p.trkT := 0, p.liteMiss := 0            ; look for the tube again
+        }
+        return none
+    }
+    if p {
+        p.boxPrev := (bl + br) / 2, p.liteMiss := 0
+        if !p.HasOwnProp("liteWs")
+            p.liteWs := []
+        p.liteWs.Push(Round(br - bl))
+        if (p.liteWs.Length > 15)
+            p.liteWs.RemoveAt(1)
+    }
+    bl := Round(bl) + 4, br := Round(br) - 4
+    return {bar: true, bl: bl, br: br, fish: fx >= 0, fx: fx, cover: 1, n: br - bl + 1, fishCol: fx >= 0}
 }
 
 
@@ -7415,6 +7589,11 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+4.4.8
+- Pinion's Aria without a skin now works: its pale tube, pastel or red bar and cyan-topped fish are read by their own shape.
+- Pinion's Aria (both looks): the bar is followed as it widens with caught notes and narrows with missed ones, instead of being lost.
+- Pinion's Aria: the splash at the start of a reel is no longer taken for falling notes.
+
 4.4.7
 - Pinion's Aria notes: the whole screen above the bar is watched, so every note is followed from where it appears, about a second before it lands, and where and when it will land is known.
 
