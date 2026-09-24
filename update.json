@@ -1,6 +1,6 @@
 {
-  "version": "4.8.0",
+  "version": "4.9.1",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "d4ef7452ad0bc0d477309e9f149a2e86f029de4e4ffd39d4b01fbd46110c2832",
-  "notes": "Sign in with Discord (or continue as a guest). Signing in opens the FISCHXR Discord server; guests can fish, with alerts, auto-reconnect, aquarium, totems and Sovereign off."
+  "sha256": "4c978da16bb1e120d248bd713dc66016c94d2e9a4fe9fe3a50a9e51f1977920a",
+  "notes": "Sign-in buttons work, totems are open to guests, and rods can be typed by name on the Rods page (small mistakes fixed, hotbar readings too)."
 }
