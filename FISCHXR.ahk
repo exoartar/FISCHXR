@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.4.8"
+APP_VER := "4.8.0"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -81,10 +81,10 @@ TAB_H := 0, BAR_H := 0, STATUS_H := 26
 ; Layout, in design units at 100% zoom. A sidebar of SIDEBAR_W width holds the
 ; tabs; pages sit to its right in one column of LEFT_W starting at PAGE_X. The
 ; row controls place themselves relative to PAD, shifted by ColX.
-SIDEBAR_W := 136, NAV_H := 30, PAGE_X := SIDEBAR_W + 16
+SIDEBAR_W := 52, SIDEBAR_X := 148, NAV_H := 30, PAGE_X := SIDEBAR_W + 16   ; the sidebar shows icons; it opens to SIDEBAR_X on hover
 PAD := 24, LEFT_W := 456, DASH_X := PAGE_X, COL2 := PAGE_X
 ROW_Y0 := 80, ROW_H := 34
-MIN_W := 600, MIN_H := 400
+MIN_W := 540, MIN_H := 400
 BasicTabs := ["Home", "Fishing", "Totems", "Aquarium", "Sovereign", "Alerts", "Reconnect", "Settings"]
 AdvTabs := ["Rods", "Live", "Reel", "Timing", "More"]
 TabNames := ["Home", "Fishing", "Totems", "Aquarium", "Sovereign", "Alerts", "Reconnect", "Settings", "Rods", "Live", "Reel", "Timing", "More"]
@@ -131,16 +131,17 @@ Defaults := Map(
     "AqOpenWait", 1500, "AqScrollSteps", 14,
     "Theme", "Black", "Zoom", 100, "ColorSafe", 0, "ReduceMotion", 0, "Speak", 0, "Sounds", 0,
     "ShowSplash", 1, "ShowHome", 1, "OnTop", 1, "ShowAreas", 0, "LastTab", "Fishing",
-    "WinX", "", "WinY", "", "WinW", 624, "WinH", 416,
+    "WinX", "", "WinY", "", "WinW", 540, "WinH", 416,
     "TotemAuto", 0, "TotemWait", 2500, "TotemSundial", 1, "NightLevel", 70,
     "SovAuto", 0, "SovEvery", 20, "SovCount", 1, "SovInvKey", "``", "SovStep", 350, "SovOpenWait", 900,
     "HookUrl", "", "HookUser", "", "HookStart", 1, "HookErrors", 1, "HookDisconnect", 1, "HookJobs", 0,
     "HookSummary", 60, "HookShots", 1,
     "AutoReconnect", 0, "RejoinLink", "roblox://experiences/start?placeId=16732694052", "RejoinWait", 40,
+    "AuthMode", "", "AuthTok", "", "AuthExp", 0, "AuthName", "", "AuthId", "",
     "RejoinMax", 4, "RejoinResume", 1, "ReelSnaps", 1,
     "MiniHud", 1, "UpdateUrl", UPDATE_URL, "AutoUpdate", 1, "LastVersion", ""
 )
-TextKeys := "|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
+TextKeys := "|AuthMode|AuthTok|AuthName|AuthId|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
 BoolKeys := ["RodReequip", "UseNavKey", "AqAuto", "ColorSafe", "ReduceMotion", "Speak", "Sounds", "ShowSplash", "ShowHome", "OnTop", "ShowAreas"
     , "TotemAuto", "TotemSundial", "SovAuto", "HookStart", "HookErrors", "HookDisconnect", "HookJobs", "HookShots", "AutoReconnect", "RejoinResume", "ReelSnaps", "MiniHud", "AutoUpdate"]
 
@@ -184,12 +185,14 @@ NumSpec := Map(
 ; fish is aimed at that green zone (Verdant Oath).
 RodLib := [
     {id: "standard",    name: "Standard",               fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587"], bt: 6},
-    {id: "verdant",     name: "Verdant Oath",           fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D"], bt: 5, greenBar: true},
+    {id: "verdant",     name: "Verdant Oath",           kind: "wood", fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D"], bt: 5, greenBar: true},
     {id: "halibut",     name: "Halibut Harpoon",        fish: ["0D0B0B"], ft: 5,  bar: ["5D52A8"], bt: 5},
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
     {id: "departed",    name: "Remembrance (Departed)", fish: ["FFFFFF"], ft: 10, bar: ["474747"], bt: 8},
     {id: "migu",        name: "Migu Rod",               fish: ["F9D9D4", "FAD6CE", "F9D4C7", "F9D2C4", "F8D0B7"], ft: 10, bar: ["E9B681", "E0A66F", "D1935B"], bt: 8},
     {id: "pinion",      name: "Pinion's Aria",          kind: "caps", notes: true, fish: [], ft: 8, bar: [], bt: 8},
+    {id: "apollo",      name: "Apollo's Sunshot",       kind: "sun", fish: [], ft: 8, bar: [], bt: 8},
+    {id: "requiem",     name: "Requiem",                kind: "teal", minSwitch: 200, fish: [], ft: 8, bar: [], bt: 8},
     {id: "pinion_plain", alias: "pinion", name: "Pinion's Aria", kind: "lite", notes: true, fish: [], ft: 8, bar: [], bt: 8},
     {id: "noiseform",   name: "Noiseform",              kind: "box", fish: ["0C4125", "003820", "0D3A27"], ft: 8
         , bar: ["33A95F", "2C894D", "2AB778", "5CBD8C", "74C198", "60BC8E", "19B572", "010101"], bt: 10}
@@ -202,7 +205,7 @@ Cfg := Map(), Dirty := Map(), RodMem := Map()
 Pal := {}, Zoom := 1.0, HasIconFont := false, IconFace := ""
 MainGui := 0, UiReady := false
 UI := {}, Clickables := Map(), Pages := Map(), FocusGlobal := [], DescOf := Map()
-Steppers := Map(), Toggles := Map(), KeyBtns := Map(), SegCtls := Map(), Swatches := Map(), Choices := Map()
+Steppers := Map(), Toggles := Map(), KeyBtns := Map(), SegCtls := Map(), Swatches := Map(), Choices := Map(), SwitchPos := Map()
 Menus := Map(), Brushes := Map()
 Stats := {casts: 0, reels: 0, misses: 0, start: 0}
 Phase := {kind: "idle", title: "Ready", detail: ""}
@@ -214,7 +217,15 @@ OutReel := 0, OutShake := 0, OutAq := 0, CurTab := "Home"
 CurRod := 0, SelRod := 0, RodProfiles := [], ProfSeq := 0, VisionLog := []
 LiveBand := 0, LiveGeo := 0, LiveD := 0, LiveP := 0, LiveEp := -1, LiveT := 0, LiveHbm := 0, LiveRate := 0
 UpdAllowLocal := false, UpdLast := ""
-ShapeWhy := "", UnmatchedAt := 0
+ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true
+; Discord sign-in. The app's Client ID is public by design (no secret is used).
+DISCORD_CLIENT_ID := "1552771662787903568", DISCORD_PORT := 53682, DISCORD_INVITE := "https://discord.gg/ERkjTTYG4B"
+GUEST_TABS := ["Aquarium", "Totems", "Sovereign", "Alerts", "Reconnect"]
+AuthState := {mode: "", id: "", name: ""}
+; (a test harness may set AuthTest before loading the macro)
+AuthTest := IsSet(AuthTest) ? AuthTest : {noPrompt: false, noBrowser: false, me: 0, state: "", opened: "", mode: ""}
+if AuthTest.noPrompt
+    AuthState.mode := AuthTest.mode != "" ? AuthTest.mode : "discord"
 SessionLooks := Map(), CurRodName := "", CurRodLib := "", RodReadBusy := false, RodReadAt := 0, RodReadLast := "", OcrHook := 0
 LivePreview := false, PreviewBand := 0, PreviewGeo := 0, EditCtls := Map(), ColX := 0, RowBase := 0
 Totems := [], SovReels := 0, SovLast := ""
@@ -232,13 +243,13 @@ RodInfoText := "Waiting for the first reel"
 ; An existing settings file means this is an upgrade (for What's new), and
 ; one saved before the sidebar layout gets the new, smaller window size.
 WasExistingIni := FileExist(IniPath) != ""
-OldLayout := WasExistingIni && IniRead(IniPath, "Settings", "UiVersion", 0) < 2
+OldLayout := WasExistingIni && IniRead(IniPath, "Settings", "UiVersion", 0) < 3
 LoadSettings()
 if OldLayout {
     Cfg["WinW"] := Defaults["WinW"], Cfg["WinH"] := Defaults["WinH"]
     try IniWrite(Cfg["WinW"], IniPath, "Settings", "WinW"), IniWrite(Cfg["WinH"], IniPath, "Settings", "WinH")
 }
-try IniWrite(2, IniPath, "Settings", "UiVersion")
+try IniWrite(3, IniPath, "Settings", "UiVersion")
 if (Trim(Cfg["UpdateUrl"]) = "")             ; an empty saved link means the built-in one
     Cfg["UpdateUrl"] := UPDATE_URL
 LoadRodMemory()
@@ -262,7 +273,7 @@ if !BindHotkeys() {
     UpdateStartControls()
 }
 SetupTray()
-SetTimer(WhatsNewCheck, -1500)
+SetTimer(AuthBoot, -900)               ; sign in with Discord (then What's new)
 if (Cfg["AutoUpdate"] && Cfg["UpdateUrl"] != "")
     SetTimer(() => CheckForUpdate(true), -4000)
 SetTimer(RefreshRobloxInfo, 2000)
@@ -705,7 +716,7 @@ ShakeUntilReel(b, geo, base) {
         Send "{" Cfg["NavKey"] "}"
         navOn := true
     }
-    hits := 0, lastShake := 0, lastNote := 0, lastLearn := 0, why := ""
+    hits := 0, lastShake := 0, lastNote := 0, lastLearn := 0, why := "", quiet := QuietRod()
     ; the rod's name decides its reel style; while it's unknown, read it again
     if (CurRodName = "" && A_TickCount - RodReadAt > 20000)
         SetTimer(ReadRodName, -10)
@@ -714,7 +725,8 @@ ShakeUntilReel(b, geo, base) {
             return "stop"
         VisionGrab(b, geo)
         r := 0
-        if (RowDiff(b, base) > 0.25) {
+        changed := RowDiff(b, base) > 0.25
+        if changed {
             r := MatchPrecoded(b, geo)
             if (!r && A_TickCount - lastLearn > 4000) {
                 lastLearn := A_TickCount
@@ -738,7 +750,10 @@ ShakeUntilReel(b, geo, base) {
                 Send "{" Cfg["NavKey"] "}"
             return "timeout"
         }
-        if (now - lastShake >= Cfg["ShakeInterval"]) {
+        ; No shaking once a reel is showing. For rods that lose the fish to
+        ; fast inputs (Requiem), none as soon as the reel area changes, even
+        ; before the reel is recognized.
+        if (now - lastShake >= Cfg["ShakeInterval"] && !r && !(quiet && changed)) {
             lastShake := now
             if nav
                 Send "{Enter}"
@@ -851,7 +866,7 @@ Reel(b, geo, base, r) {
     est := {aH: 3.0 * w / 1e6, aR: 3.0 * w / 1e6, wH: 0.2, wR: 0.2, nH: 0, nR: 0, fits: 0}
     lag := LagEstimator(L)
     holding := false, tSwitch := QPC() - 1000, sw := [[tSwitch, false]]
-    c := -1, v := 0, tC := 0, f := -1, fv := 0, tF := 0, aim := "fish", lastAim := "fish"
+    c := -1, v := 0, tC := 0, f := -1, fv := 0, tF := 0, aim := "fish", lastAim := "fish", jumpTo := -1
     lastBl := -2, lastBr := -2, lastFx := -2, tFrame := 0, vmaxSeen := 0
     widths := [], bw := 0, memKey := "", segT := [], segX := []
     t0 := A_TickCount, lastUI := t0, lastDash := 0, frame := 0, ep := -1, good := 0
@@ -875,7 +890,7 @@ Reel(b, geo, base, r) {
             VisionGrab(b, geo)
             d := VisionScan(b, p, f)
             ; Verdant Oath: aim the fish at the green zone, not the bar's centre
-            if (p.greenBar && d.bar && d.fish && (gz := GreenZone(b, d)) >= 0)
+            if (p.greenBar && d.bar && d.fish && (gz := (d.HasOwnProp("zc") ? d.zc : GreenZone(b, d))) >= 0)
                 d.fx -= gz - (d.bl + d.br) / 2
             ; Noiseform: after the warning, take the bar to the zone it named
             aim := "fish"
@@ -986,8 +1001,13 @@ Reel(b, geo, base, r) {
             tC := tq
             vmaxSeen := Max(vmaxSeen, Abs(v))
             nearWall := d.bl <= 2 || d.br >= w - 3
-            if (widths.Length < 40)
-                widths.Push(d.br - d.bl + 1)
+            ; Some rods change the bar's size during a reel (Pinion's Aria, Verdant
+            ; Oath): the width is the median of the latest readings, kept current.
+            widths.Push(d.br - d.bl + 1)
+            if (widths.Length > 20)
+                widths.RemoveAt(1)
+            if (memKey != "" && widths.Length >= 12)
+                bw := MedianOf(widths)
             if autoLag {
                 lag.Observe(sw, tq, cm, c, v, est.aH, est.aR, w, (d.br - d.bl) / 2, vmaxSeen)
                 L := lag.value
@@ -1049,15 +1069,27 @@ Reel(b, geo, base, r) {
             f := -1, fv := 0, lastAim := aim
         if (d.fish && fresh) {
             if (f < 0) {
-                f := d.fx, fv := 0
+                f := d.fx, fv := 0, jumpTo := -1
             } else {
                 dt := Max(1, tq - tF)
                 fp := f + fv * dt
                 res := d.fx - fp
-                f := fp + 0.6 * res
-                fv := Clamp(fv + 0.15 * res / Max(dt, 8), -3, 3)
+                ; A real fish moves continuously: a reading far from where it
+                ; should be only counts once the next reading agrees (a wrong
+                ; reading for one frame would otherwise send the bar lunging).
+                if (Abs(res) > w * 0.15) {
+                    if (jumpTo >= 0 && Abs(d.fx - jumpTo) < w * 0.05)
+                        f := d.fx, fv := 0, jumpTo := -1, tF := tq
+                    else
+                        jumpTo := d.fx
+                } else {
+                    f := fp + 0.6 * res
+                    fv := Clamp(fv + 0.15 * res / Max(dt, 8), -3, 3)
+                    jumpTo := -1, tF := tq
+                }
             }
-            tF := tq
+            if (tF != tq && f >= 0 && jumpTo < 0)
+                tF := tq
         }
 
         haveFish := d.fish || (f >= 0 && tq - tF < 300)
@@ -1065,9 +1097,13 @@ Reel(b, geo, base, r) {
             hold := v < 0                          ; hover in place
         } else {
             fx := d.fish ? f : f + fv * (tq - tF)
-            if (fx <= edge)
+            ; With the fish nearer an end than about half the bar, the bar can't
+            ; be centred on it: the best is to sit against that end, so just
+            ; hold it there (trying to centre is what bounces it off the end).
+            pin := Max(edge, bw ? 0.45 * bw : 0)
+            if (fx <= pin)
                 hold := false
-            else if (fx >= w - edge)
+            else if (fx >= w - pin)
                 hold := true
             else if (c < 0)
                 hold := fx > w / 2
@@ -1084,13 +1120,22 @@ Reel(b, geo, base, r) {
                 eL := (f + lead * fv * (tq + L - tF)) - cL     ; fish relative to bar centre
                 de := lead * fv - vL
                 ab := de > 0 ? est.aH : est.aR                ; braking acceleration available
-                hold := (eL + brk * de * Abs(de) / (2 * ab)) > 0
+                ; Calm zone: with the fish well inside the bar and the two not
+                ; drifting apart, just keep the bar still instead of chasing the
+                ; exact centre (chasing it is what makes the bar bounce). Narrow
+                ; for Verdant Oath, whose green zone needs the precision.
+                dz := CalmZoneOn ? hw * (p.greenBar ? 0.06 : 0.2) : 0
+                if (Abs(eL) < dz && Abs(de) < w * 0.00025)
+                    hold := vL < 0
+                else
+                    hold := (eL + brk * de * Abs(de) / (2 * ab)) > 0
             } else {
                 hold := fx > c + v * (tq - tC) + v * look
             }
         }
         ; Roblox reads input once per frame, so never flip faster than that.
-        if (hold != holding && tq - tSwitch >= 16) {
+        ; (Requiem snaps the line if inputs come too fast: it has its own minimum)
+        if (hold != holding && tq - tSwitch >= (p.minSwitch ? p.minSwitch : 16)) {
             if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1 && p.kind = "") {
                 phantom := true
                 break
@@ -1415,6 +1460,15 @@ UsePhysicalPixels() {
     try DllCall("SetThreadDpiAwarenessContext", "Ptr", -4, "Ptr")
 }
 
+; The minimum time between inputs for the rod in hand, if it has one
+; (Requiem loses the fish to fast inputs); 0 for rods that don't care.
+QuietRod() {
+    for lib in RodLib
+        if (lib.id = CurRodLib && lib.HasOwnProp("minSwitch"))
+            return lib.minSwitch
+    return 0
+}
+
 
 ;==============================================================================
 ; Auto aquarium. Opens Fisch's aquarium panel, scrolls through the fish food
@@ -1427,6 +1481,8 @@ RunAquariumNow() {
 }
 
 RunAquarium(manual := false) {
+    if IsGuest()
+        return
     global AqNext, AqManual, AqAbort, AqLast, RobloxHwnd
     if manual {
         if (Running || Calibrating || AqManual)
@@ -1863,6 +1919,7 @@ BuildGui() {
     MainGui.BackColor := Pal.content
     MainGui.MarginX := 0, MainGui.MarginY := 0
     MainGui.OnEvent("Close", (*) => ExitApp())
+    SwitchArt.Build()
     BuildSidebar()
     BuildChrome()
     BuildStatusBar()
@@ -1874,6 +1931,7 @@ BuildGui() {
     Loop 4
         UI.ring.Push(MainGui.Add("Text", "x0 y0 w1 h1 Hidden Background" Pal.focus))
     BuildMenus()
+    LockPanel.Build()
     UiReady := true
     RodsChanged(), TotemsChanged()
 }
@@ -1885,15 +1943,17 @@ NavIcon(name) {
     return icons.Has(name) ? icons[name] : 0xE76C
 }
 
-; The sidebar: logo, the tabs, and the start button at the bottom.
+; The sidebar: the logo, the tabs' icons and the start button, in a narrow
+; strip. Hovering it opens the full sidebar (class Flyout) over the page.
 BuildSidebar() {
-    x := 14
+    UI.logoHbm := 0
     if (src := LogoImage("icon")) {
         UI.logoHbm := GpScaled(src, ZS(24), ZS(24), "0x" Pal.strip)
         if UI.logoHbm
-            MainGui.Add("Picture", Format("x{} y{} w{} h{}", ZS(14), ZS(15), ZS(24), ZS(24)), "HBITMAP:*" UI.logoHbm), x := 46
+            MainGui.Add("Picture", Format("x{} y{} w{} h{}", ZS((SIDEBAR_W - 24) // 2), ZS(15), ZS(24), ZS(24)), "HBITMAP:*" UI.logoHbm)
     }
-    AddT(0, x, 10, SIDEBAR_W - x - 6, 34, "FISCHXR", "display", 12, Pal.text, Pal.strip, "0x200")
+    if !UI.logoHbm
+        AddT(0, 4, 10, SIDEBAR_W - 8, 34, "F", "display", 14, Pal.text, Pal.strip, "Center 0x200")
     y := 56
     for i, name in BasicTabs
         NavRow(name, name, y + (i - 1) * NAV_H, "basic")
@@ -1901,24 +1961,27 @@ BuildSidebar() {
     UI.navBack := NavRow("__back", "Back", y, "adv", 0xE76B)
     for i, name in AdvTabs
         NavRow(name, name, y + i * NAV_H + 6, "adv")
-    UI.startBtn := AddT(0, 12, 364, SIDEBAR_W - 24, 36, "", "body", 10, Pal.ink, Pal.accent, "Center 0x200")
+    ; the active tab's mark: one bar that slides from tab to tab
+    UI.navInd := AddT(0, 3, y, 3, NAV_H - 4, "", "body", 9, Pal.text, Pal.accent)
+    UI.startBtn := AddT(0, 8, 364, SIDEBAR_W - 16, 36, "", HasIconFont ? "icon" : "body", HasIconFont ? 12 : 11, Pal.ink, Pal.accent, "Center 0x200")
     Clickables[UI.startBtn.Hwnd] := {kind: "btn", fn: (*) => ToggleMacro(), obj: UI.startBtn, bg: Pal.accent, hv: Pal.accentHi}
     FocusGlobal.Push({ctls: [UI.startBtn], name: "Start or stop fishing", act: () => ToggleMacro(), adj: 0, value: 0, desc: ""})
+    Flyout.Build()
 }
 
-; One sidebar entry: an accent mark, an icon and a label side by side.
+; One sidebar entry: its icon (the flyout shows the label beside it). Without
+; the icon font, the label's first letters stand in for the icon.
 NavRow(name, label, y, mode, icon := 0) {
     h := NAV_H - 4
-    mark := AddT(0, 8, y, 3, h, "", "body", 9, Pal.text, Pal.strip)
-    ic := AddT(0, 11, y, 28, h, HasIconFont ? Chr(icon ? icon : NavIcon(name)) : "", HasIconFont ? "icon" : "body", 10, Pal.dim, Pal.strip, "Center 0x200")
-    lb := AddT(0, 39, y, SIDEBAR_W - 47, h, label, "body", 10, Pal.dim, Pal.strip, "0x200")
-    e := {kind: "tab", name: name, obj: lb, objs: [ic, lb], bg: Pal.strip, hv: Pal.fieldHi}
-    Clickables[mark.Hwnd] := e, Clickables[ic.Hwnd] := e, Clickables[lb.Hwnd] := e
-    row := {mark: mark, icon: ic, label: lb, mode: mode, entry: e}
+    txt := HasIconFont ? Chr(icon ? icon : NavIcon(name)) : SubStr(label, 1, 2)
+    ic := AddT(0, 8, y, SIDEBAR_W - 16, h, txt, HasIconFont ? "icon" : "body", 10, Pal.dim, Pal.strip, "Center 0x200")
+    e := {kind: "tab", name: name, obj: ic, objs: [ic], bg: Pal.strip, hv: Pal.fieldHi}
+    Clickables[ic.Hwnd] := e
+    row := {icon: ic, mode: mode, entry: e, y: y, label: label, glyph: txt}
     UI.navRows[name] := row
     if (SubStr(name, 1, 2) != "__")
-        UI.tabs[name] := lb
-    FocusGlobal.Push({ctls: [ic, lb], name: label (SubStr(name, 1, 2) = "__" ? "" : " tab"), act: NavPress.Bind(name), adj: 0, value: 0, desc: "", navMode: mode})
+        UI.tabs[name] := ic
+    FocusGlobal.Push({ctls: [ic], name: label (SubStr(name, 1, 2) = "__" ? "" : " tab"), act: NavPress.Bind(name), adj: 0, value: 0, desc: "", navMode: mode})
     return row
 }
 
@@ -2223,7 +2286,9 @@ Stepper(page, row, key, swatchKey := "") {
 Toggle(page, row, key, label, desc) {
     y := RowBase + row * ROW_H, ox := ColX
     lab := AddT(page, PAD + ox, y, 340, 28, label, "body", 10, Pal.text, Pal.content, "0x200")
-    t := AddT(page, ox + 382, y, 60, 28, "Off", "body", 9, Pal.dim, Pal.field, "Center 0x200")
+    t := MainGui.Add("Picture", Format("x{} y{} w{} h{}", ZS(ox + 400), ZS(y + 2), ZS(SwitchArt.W), ZS(SwitchArt.H)), "HBITMAP:*" SwitchArt.Frame(Cfg[key] ? 1 : 0))
+    Pages[page].ctls.Push(t)
+    SwitchPos[t.Hwnd] := Cfg[key] ? 1 : 0
     Clickables[t.Hwnd] := {kind: "toggle", key: key, obj: t}
     Toggles[key] := t
     DescOf[lab.Hwnd] := desc, DescOf[t.Hwnd] := desc
@@ -2332,7 +2397,12 @@ ShowMain(tab, px := "", py := "") {
     pos := ""
     if (IsNumber(x) && IsNumber(y) && PointOnScreen(Integer(x) + 60, Integer(y) + 20))
         pos := Format("x{} y{} ", Integer(x), Integer(y))
+    fade := !Cfg["ReduceMotion"]
+    if fade
+        WinSetTransparent(0, MainGui.Hwnd)
     MainGui.Show(pos "w" w " h" h)
+    if fade
+        FadeWindow(MainGui.Hwnd, 260)
     StyleWindow(MainGui.Hwnd)
     try ApplyAppIcon(MainGui.Hwnd)
     Layout()
@@ -2346,9 +2416,11 @@ SwitchTab(name, speak := true) {
     if (CurTab = "Rods" && name != "Rods")
         try CommitRename(false)
     CurTab := name
+    locked := TabLocked(name)                   ; a guest sees a sign-in panel instead
     for t, pg in Pages
         for c in pg.ctls
-            c.Visible := (t = name)
+            c.Visible := (t = name) && !locked
+    LockPanel.Show(locked ? name : "")
     ; an Advanced page brings the Advanced tabs into the sidebar, and back
     mode := "basic"
     for t in AdvTabs
@@ -2392,20 +2464,43 @@ CycleTab(dir) {
 }
 
 PaintTabs() {
+    ; only the rows whose state changed are repainted (repainting all of them
+    ; on every change made the sidebar slow)
     for name, row in UI.navRows {
-        on := (name = CurTab), e := row.entry
+        on := (name = CurTab), vis := (row.mode = UI.navMode), e := row.entry
+        if (row.HasOwnProp("on") && row.on = on && row.vis = vis)
+            continue
+        row.on := on, row.vis := vis
         e.bg := on ? Pal.field : Pal.strip, e.hv := on ? Pal.field : Pal.fieldHi
-        for c in [row.icon, row.label] {
-            c.Opt("Background" e.bg)
-            c.SetFont("c" (on ? Pal.text : Pal.dim))
-            c.Redraw()
-        }
-        row.mark.Opt("Background" (on ? Pal.accent : Pal.strip))
-        row.mark.Redraw()
-        vis := (row.mode = UI.navMode)
-        for c in [row.mark, row.icon, row.label]
-            c.Visible := vis
+        row.icon.Opt("Background" e.bg " c" (on ? Pal.text : Pal.dim))
+        if (row.icon.Visible != vis)
+            row.icon.Visible := vis
+        if vis
+            row.icon.Redraw()
     }
+    MoveNavMark()
+    Flyout.Paint()
+}
+
+; Slides the active tab's mark to its tab (or hides it when that tab's set
+; isn't showing).
+MoveNavMark() {
+    if !UI.HasOwnProp("navInd")
+        return
+    ind := UI.navInd
+    if !(UI.navRows.Has(CurTab) && UI.navRows[CurTab].mode = UI.navMode) {
+        ind.Visible := false
+        return
+    }
+    ty := ZS(UI.navRows[CurTab].y)
+    ind.GetPos(, &y0)
+    if (!ind.Visible || Cfg["ReduceMotion"] || !UiReady || !DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd)) {
+        ind.Move(, ty), ind.Visible := true
+        return
+    }
+    if (ty = y0)
+        return
+    Anim.Run(170, (e) => ind.Move(, Round(y0 + (ty - y0) * e)), "mark")
 }
 
 Layout() {
@@ -2551,15 +2646,25 @@ RebuildGui() {
 ;------------------------------------------------------------------------------
 ; Painting state onto controls
 ;------------------------------------------------------------------------------
+; A switch slides to its new position, its track fading between grey and
+; the accent colour.
 PaintToggle(key) {
     if Toggles.Has(key) {
-        t := Toggles[key], on := Cfg[key]
-        t.Opt("Background" (on ? Pal.accent : Pal.field))
-        t.SetFont(on ? "w600 c" Pal.ink : "w400 c" Pal.dim)
-        t.Text := on ? "On" : "Off"
-        t.Redraw()
+        t := Toggles[key], to := Cfg[key] ? 1 : 0
+        from := SwitchPos.Has(t.Hwnd) ? SwitchPos[t.Hwnd] : 1 - to
+        if (from != to)
+            Anim.Run(150, SwitchStep.Bind(t, from, to), "sw" t.Hwnd)
+        else
+            SetSwitch(t, to)
     }
     PaintChips()
+}
+SwitchStep(t, from, to, e) => SetSwitch(t, from + (to - from) * e)
+SetSwitch(t, pos) {
+    SwitchPos[t.Hwnd] := pos
+    old := SendMessage(0x172, 0, SwitchArt.Frame(pos), t.Hwnd)        ; STM_SETIMAGE
+    if (old && !SwitchArt.Owns(old))
+        DllCall("DeleteObject", "Ptr", old)                          ; (the control's own copy)
 }
 
 PaintChips() {
@@ -2608,10 +2713,12 @@ UpdateStartControls() {
         b := UI.startBtn, e := Clickables[b.Hwnd]
         busy := Running || AqManual, k := KeyName(Cfg["ToggleKey"])
         e.bg := busy ? Pal.field : Pal.accent, e.hv := busy ? Pal.fieldHi : Pal.accentHi
-        b.Text := (busy ? "■  Stop" : "►  Start") "  " k
-        b.SetFont("c" (busy ? Pal.stop : Pal.ink))
-        b.Opt("Background" (Hover = b.Hwnd ? e.hv : e.bg))
+        b.Text := HasIconFont ? Chr(busy ? 0xE71A : 0xE768) : (busy ? "■" : "►")
+        b.Opt("Background" (Hover = b.Hwnd ? e.hv : e.bg) " c" (busy ? Pal.stop : Pal.ink))
         b.Redraw()
+        Flyout.PaintStart(busy, k)
+        if (busy && !Cfg["ReduceMotion"])
+            SetTimer(PulseDot, 70)
     }
 }
 
@@ -2646,13 +2753,18 @@ PaintPhase() {
         return
     try {
         col := PhaseColor(Phase.kind)
-        if (UI.dStatus.Text != Phase.title)
+        changed := UI.dStatus.Text != Phase.title
+        if changed
             UI.dStatus.Text := Phase.title
         if (UI.sbStatus.Text != Phase.title)
             UI.sbStatus.Text := Phase.title
         if (col != UI.phaseColor) {
             UI.dStatus.SetFont("c" col), UI.sbDot.SetFont("c" col)
             UI.phaseColor := col
+        }
+        if changed {
+            FadeText(UI.dStatus, Pal.content, col, 280, "stfade")
+            FadeText(UI.sbStatus, Pal.bar, Pal.text, 280, "sbfade")
         }
         det := (Phase.detail = "" && Phase.kind = "idle") ? IdleHint() : Phase.detail
         if (UI.dDetail.Text != det)
@@ -2720,8 +2832,14 @@ UpdateStats() {
     if !UiReady
         return
     try {
+        static lastC := -1, lastR := -1
         UI.sbCasts.Text := "Casts " Stats.casts
         UI.sbReels.Text := "Reels " Stats.reels
+        if (lastC >= 0 && Stats.casts > lastC)
+            FadeText(UI.sbCasts, Pal.accent, Pal.text, 700, "fcasts")
+        if (lastR >= 0 && Stats.reels > lastR)
+            FadeText(UI.sbReels, Pal.accent, Pal.text, 700, "freels")
+        lastC := Stats.casts, lastR := Stats.reels
     }
     Hud.Update()
 }
@@ -3161,11 +3279,14 @@ class Hud {
             this.g.Show(Format("x{} y{} NoActivate", x, y))
             return
         }
-        this.g.Show(Format("x{} y{} NoActivate", x + 60, y))    ; slide in from the edge
-        for k in [36, 18, 8, 3, 0] {
-            Sleep 14
-            try WinMove(x + k, y, , , "ahk_id " this.g.Hwnd)
+        hw := this.g.Hwnd
+        WinSetTransparent(0, hw)
+        this.g.Show(Format("x{} y{} NoActivate", x + 60, y))    ; glides in from the edge
+        glide(e) {
+            try WinMove(x + Round(60 * (1 - e)), y, , , "ahk_id " hw)
+            try WinSetTransparent(Round(255 * e), hw)
         }
+        Anim.Run(260, glide, "hud", OpaqueAgain.Bind(hw))
     }
     static Hide() {
         if this.g
@@ -3249,7 +3370,11 @@ HudLeave() {
     Hud.Hide()
     if (UiReady && IsObject(MainGui) && UI.hiddenForHud) {
         UI.hiddenForHud := false
+        if !Cfg["ReduceMotion"]
+            WinSetTransparent(0, MainGui.Hwnd)
         MainGui.Show()
+        if !Cfg["ReduceMotion"]
+            FadeWindow(MainGui.Hwnd, 220)
         Layout()
     }
 }
@@ -3261,15 +3386,386 @@ SelectRod(i, *) => 0
 SlideIn(ctls) {
     if (Cfg["ReduceMotion"] || !UiReady || !IsObject(MainGui) || !DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd))
         return
-    pos := []
+    Anim.Finish("slide")                     ; (a slide still running ends where it belongs first)
+    pos := [], rc := Buffer(16)
     for c in ctls {
-        c.GetPos(&x, &y)
-        pos.Push([c, x])
+        DllCall("GetWindowRect", "Ptr", c.Hwnd, "Ptr", rc)
+        DllCall("MapWindowPoints", "Ptr", 0, "Ptr", MainGui.Hwnd, "Ptr", rc, "UInt", 2)
+        pos.Push([c.Hwnd, NumGet(rc, 0, "Int"), NumGet(rc, 4, "Int")])
     }
-    for k in [18, 10, 5, 2, 0] {
-        for it in pos
-            it[1].Move(it[2] + ZS(k))
-        Sleep 12
+    Anim.Run(200, SlideStep.Bind(pos, ToPhys(22)), "slide", SlideDone)
+    try FadeText(UI.desc, Pal.content, Pal.dim, 260, "descfade")
+}
+; Each step places the controls without Windows copying their old pixels
+; (copied pixels left text shifted inside its box and old edges behind).
+SlideStep(pos, dx, e) {
+    k := Round(dx * (1 - e))
+    for it in pos
+        DllCall("SetWindowPos", "Ptr", it[1], "Ptr", 0, "Int", it[2] + k, "Int", it[3], "Int", 0, "Int", 0, "UInt", 0x115)   ; no size, no z-order, no activate, no copied bits
+}
+SlideDone() {
+    try DllCall("RedrawWindow", "Ptr", MainGui.Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 0x585)
+}
+
+
+;==============================================================================
+; The full sidebar, opened over the page while the mouse is on the icon strip:
+; a borderless window of its own (so it lies cleanly over the page) that slides
+; open and shut. It mirrors the strip: the same tabs, the active one marked,
+; and the start button with its label.
+;==============================================================================
+class Flyout {
+    static g := 0, rows := Map(), start := 0, ind := 0, isOpen := false, away := 0, watcher := 0, placed := "", acct := 0
+
+    static Build() {
+        if this.g
+            try this.g.Destroy()
+        this.rows := Map(), this.isOpen := false, this.placed := ""
+        g := Gui("-Caption +ToolWindow +Owner" MainGui.Hwnd (Cfg["OnTop"] ? " +AlwaysOnTop" : ""))
+        g.BackColor := Pal.strip, g.MarginX := 0, g.MarginY := 0
+        W := SIDEBAR_X, x := 14
+        if UI.logoHbm
+            g.Add("Picture", Format("x{} y{} w{} h{}", ZS((SIDEBAR_W - 24) // 2), ZS(15), ZS(24), ZS(24)), "HBITMAP:*" UI.logoHbm), x := SIDEBAR_W
+        SetFontFor(g, "norm s" FZ(12) " c" Pal.text, "display")
+        g.Add("Text", Format("x{} y{} w{} h{} 0x200 Background{}", ZS(x), ZS(8), ZS(W - x - 6), ZS(24), Pal.strip), "FISCHXR")
+        ; who's signed in, under the name: click to sign in or out
+        SetFontFor(g, "norm s" FZ(8) " c" Pal.dim, "body")
+        this.acct := g.Add("Text", Format("x{} y{} w{} h{} 0x200 Background{}", ZS(x), ZS(31), ZS(W - x - 6), ZS(17), Pal.strip), "")
+        Clickables[this.acct.Hwnd] := {kind: "btn", fn: (*) => AccountClick(), obj: this.acct, bg: Pal.strip, hv: Pal.fieldHi}
+        PaintAccount()
+        for name, row in UI.navRows {
+            h := NAV_H - 4
+            SetFontFor(g, "norm s" FZ(10) " c" Pal.dim, HasIconFont ? "icon" : "body")
+            ic := g.Add("Text", Format("x{} y{} w{} h{} Center 0x200 Background{}", ZS(8), ZS(row.y), ZS(SIDEBAR_W - 16), ZS(h), Pal.strip), row.glyph)
+            SetFontFor(g, "norm s" FZ(10) " c" Pal.dim, "body")
+            lb := g.Add("Text", Format("x{} y{} w{} h{} 0x200 Background{}", ZS(SIDEBAR_W - 8), ZS(row.y), ZS(W - SIDEBAR_W), ZS(h), Pal.strip), row.label)
+            e := {kind: "tab", name: name, obj: lb, objs: [ic, lb], bg: Pal.strip, hv: Pal.fieldHi}
+            Clickables[ic.Hwnd] := e, Clickables[lb.Hwnd] := e
+            this.rows[name] := {icon: ic, label: lb, entry: e, mode: row.mode, y: row.y}
+        }
+        this.ind := g.Add("Text", Format("x{} y{} w{} h{} Background{}", ZS(3), ZS(56), ZS(3), ZS(NAV_H - 4), Pal.accent))
+        SetFontFor(g, "norm s" FZ(10) " c" Pal.ink, "body")
+        this.start := g.Add("Text", Format("x{} y{} w{} h{} Center 0x200 Background{}", ZS(12), ZS(364), ZS(W - 24), ZS(36), Pal.accent), "")
+        Clickables[this.start.Hwnd] := {kind: "btn", fn: (*) => ToggleMacro(), obj: this.start, bg: Pal.accent, hv: Pal.accentHi}
+        g.Show(Format("Hide w{} h{}", ZS(W), ZS(416)))       ; (sized, and kept hidden until the strip is hovered)
+        StyleWindow(g.Hwnd)                                  ; rounded, with the system's shadow
+        this.g := g
+        this.Paint()
+    }
+
+    static Paint() {
+        if !this.g
+            return
+        for name, r in this.rows {
+            on := (name = CurTab), e := r.entry, vis := (r.mode = UI.navMode)
+            if (r.HasOwnProp("on") && r.on = on && r.vis = vis)
+                continue
+            r.on := on, r.vis := vis
+            e.bg := on ? Pal.field : Pal.strip, e.hv := on ? Pal.field : Pal.fieldHi
+            for c in [r.icon, r.label] {
+                c.Opt("Background" e.bg " c" (on ? Pal.text : Pal.dim))
+                if (c.Visible != vis)
+                    c.Visible := vis
+                if vis
+                    c.Redraw()
+            }
+        }
+        if (this.rows.Has(CurTab) && this.rows[CurTab].mode = UI.navMode)
+            this.ind.Move(, ZS(this.rows[CurTab].y)), this.ind.Visible := true
+        else
+            this.ind.Visible := false
+    }
+
+    static PaintStart(busy, key) {
+        if !this.start
+            return
+        e := Clickables[this.start.Hwnd]
+        e.bg := busy ? Pal.field : Pal.accent, e.hv := busy ? Pal.fieldHi : Pal.accentHi
+        this.start.Text := (busy ? "■  Stop" : "►  Start") "  " key
+        this.start.Opt("Background" e.bg " c" (busy ? Pal.stop : Pal.ink))
+        this.start.Redraw()
+    }
+
+    ; Opens over the page, from the strip's width to the full width.
+    static Open() {
+        if (this.isOpen || !this.g || !UiReady || !DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd))
+            return
+        this.isOpen := true, this.away := 0
+        pt := Buffer(8, 0), rc := Buffer(16, 0)
+        DllCall("ClientToScreen", "Ptr", MainGui.Hwnd, "Ptr", pt)
+        DllCall("GetClientRect", "Ptr", MainGui.Hwnd, "Ptr", rc)
+        cx := NumGet(pt, 0, "Int"), cy := NumGet(pt, 4, "Int"), ch := NumGet(rc, 12, "Int")
+        ; the start button sits at the bottom, as in the strip
+        UI.startBtn.GetPos(, &sy)
+        this.start.GetPos(, &fy)
+        if (fy != sy)
+            this.start.Move(, sy)
+        ; It opens at full size and is revealed from the strip outward through
+        ; a widening clip, which only paints the newly shown part (resizing it
+        ; step by step redrew every control each step, which was slow).
+        full := ToPhys(SIDEBAR_X), from := ToPhys(SIDEBAR_W)
+        ; placing it is the slow part: only when the main window has moved
+        ; or changed size since last time
+        spot := cx "," cy "," ch
+        if (spot != this.placed)
+            WinMove(cx, cy, full, ch, this.g.Hwnd), this.placed := spot
+        if Cfg["ReduceMotion"] {
+            this.g.Show("NA")
+        } else {
+            this.Clip(from, ch)
+            this.g.Show("NA")
+            this.Reveal(ch, false)
+        }
+        if !this.watcher
+            this.watcher := ObjBindMethod(this, "Watch")
+        SetTimer(this.watcher, 60)
+    }
+
+    ; Shuts once the mouse has left it (and the strip) for a moment.
+    static Watch() {
+        if !this.isOpen
+            return SetTimer(this.watcher, 0)
+        pt := Buffer(8, 0)
+        DllCall("GetCursorPos", "Ptr", pt)
+        mx := NumGet(pt, 0, "Int"), my := NumGet(pt, 4, "Int")
+        WinGetPos(&fx, &fy, &fw, &fh, this.g.Hwnd)
+        if (mx >= fx && mx < fx + fw && my >= fy && my < fy + fh) {
+            this.away := 0
+            return
+        }
+        if (++this.away >= 3)
+            this.Close()
+    }
+
+    static Close() {
+        if !this.isOpen
+            return
+        this.isOpen := false
+        SetTimer(this.watcher, 0)
+        if Cfg["ReduceMotion"] {
+            this.g.Hide()
+            return
+        }
+        WinGetPos(, , , &fh, this.g.Hwnd)
+        this.Reveal(fh, true)
+    }
+
+    ; Reveals it from the strip outward (or shuts it), eased.
+    static Reveal(h, closing) {
+        ; (nested functions don't share the method's `this`: the class is named)
+        full := ToPhys(SIDEBAR_X), edge := ToPhys(SIDEBAR_W), g := this.g
+        step(e) => Flyout.Clip(Round(edge + (full - edge) * (closing ? 1 - e : e)), h)
+        finish() {
+            if closing {
+                if !Flyout.isOpen
+                    try g.Hide()
+                try DllCall("SetWindowRgn", "Ptr", g.Hwnd, "Ptr", 0, "Int", false)
+            } else
+                try DllCall("SetWindowRgn", "Ptr", g.Hwnd, "Ptr", 0, "Int", true)
+        }
+        Anim.Run(closing ? 120 : 170, step, "fly", finish)
+    }
+
+    ; Steps the reveal (or the shutting) on a timer: each step is one clip.
+    static Animate(steps, h, closing) {
+        static st := 0
+        if st
+            SetTimer(st, 0)
+        full := ToPhys(SIDEBAR_X), edge := ToPhys(SIDEBAR_W), i := 0, g := this.g
+        step() {
+            i++
+            if (i <= steps.Length) {
+                try this.Clip(Round(edge + (full - edge) * steps[i]), h)
+                return
+            }
+            SetTimer(st, 0), st := 0
+            if closing {
+                if !this.isOpen                       ; (not reopened meanwhile)
+                    try g.Hide()
+                try DllCall("SetWindowRgn", "Ptr", g.Hwnd, "Ptr", 0, "Int", false)
+            } else
+                try DllCall("SetWindowRgn", "Ptr", g.Hwnd, "Ptr", 0, "Int", true)
+        }
+        st := step
+        SetTimer(st, 12)
+    }
+
+    ; Shows only the left w pixels of the opened sidebar.
+    static Clip(w, h) {
+        DllCall("SetWindowRgn", "Ptr", this.g.Hwnd, "Ptr", DllCall("CreateRectRgn", "Int", 0, "Int", 0, "Int", w, "Int", h, "Ptr"), "Int", true)
+    }
+}
+
+; While fishing, the status dot breathes gently.
+PulseDot() {
+    if (!(Running || AqManual) || Cfg["ReduceMotion"] || !UiReady) {
+        SetTimer(PulseDot, 0)
+        try UI.sbDot.Opt("c" UI.phaseColor), UI.sbDot.Redraw()
+        return
+    }
+    SetTimer(PulseDot, 70)
+    k := 0.5 + 0.5 * Sin(A_TickCount / 1000 * 3.9)            ; a breath about every 1.6 s
+    try UI.sbDot.Opt("c" Mix(Pal.dim, Pal.accent, k)), UI.sbDot.Redraw()
+}
+
+; Opens the full sidebar once the mouse has rested on the icon strip for a
+; moment (not when it only passes over it).
+FlyoutIntent() {
+    if (!UiReady || FocusOn)
+        return
+    pt := CursorClient()
+    if (pt.x >= 0 && pt.x < ToPhys(SIDEBAR_W) && pt.y > ToPhys(46))
+        Flyout.Open()
+}
+
+
+;==============================================================================
+; Animation. Everything that moves goes through here: one timer steps every
+; running animation, eased, so nothing ever makes the window wait. While
+; something moves, Windows' timer runs at 1 ms so the steps land every ~15 ms.
+;==============================================================================
+class Anim {
+    static items := [], ticker := 0, fine := false
+
+    ; Calls fn(e) with e rising from 0 to 1 (eased) over ms, then done().
+    ; A new animation with the same key ends the old one where it belongs.
+    static Run(ms, fn, key := "", done := 0) {
+        if Cfg["ReduceMotion"] {
+            try fn(1.0)
+            if done
+                try done()
+            return
+        }
+        if (key != "")
+            this.Finish(key)
+        this.items.Push({t0: A_TickCount, ms: ms, fn: fn, key: key, done: done})
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Step")
+        if !this.fine
+            DllCall("winmm\timeBeginPeriod", "UInt", 1), this.fine := true
+        SetTimer(this.ticker, 15)
+    }
+
+    ; Ends a running animation at once, at its end state.
+    ; (A function kept in a property is called through a variable: called as
+    ; it.fn(), AutoHotkey would pass `it` along as an extra first argument.)
+    static Finish(key) {
+        for i, it in this.items
+            if (it.key = key) {
+                this.items.RemoveAt(i)
+                f := it.fn, d := it.done
+                try f(1.0)
+                if d
+                    try d()
+                return
+            }
+    }
+
+    static Step() {
+        cur := this.items, this.items := [], now := A_TickCount, fin := []
+        for it in cur {
+            p := Min(1, (now - it.t0) / it.ms), f := it.fn
+            try f(1 - (1 - p) ** 3)                              ; ease out
+            (p < 1) ? this.items.Push(it) : fin.Push(it)
+        }
+        for it in fin
+            if (d := it.done)
+                try d()
+        if !this.items.Length {
+            SetTimer(this.ticker, 0)
+            if this.fine
+                DllCall("winmm\timeEndPeriod", "UInt", 1), this.fine := false
+        }
+    }
+}
+
+; A colour between a and b ("RRGGBB"), t from 0 to 1.
+Mix(a, b, t) {
+    a := Integer("0x" a), b := Integer("0x" b), t := Max(0, Min(1, t))
+    r := Round(((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255)) * t))
+    g := Round(((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255)) * t))
+    bl := Round((a & 255) + (((b & 255) - (a & 255)) * t))
+    return Format("{:02X}{:02X}{:02X}", r, g, bl)
+}
+
+; A control's text colour fades from one colour to another.
+FadeText(ctl, from, to, ms, key) => Anim.Run(ms, TextStep.Bind(ctl, from, to), key)
+TextStep(ctl, from, to, e) {
+    ctl.Opt("c" Mix(from, to, e))
+    ctl.Redraw()
+}
+
+; A control's background fades from one colour to another.
+FadeBack(ctl, from, to, ms, key) => Anim.Run(ms, BackStep.Bind(ctl, from, to), key)
+BackStep(ctl, from, to, e) {
+    ctl.Opt("Background" Mix(from, to, e))
+    ctl.Redraw()
+}
+
+; A window fades in, then drops its transparency.
+FadeWindow(hwnd, ms) {
+    step(e) => WinSetTransparent(Round(255 * e), hwnd)
+    Anim.Run(ms, step, "win" hwnd, OpaqueAgain.Bind(hwnd))
+}
+; Once a window stops being see-through Windows needs it repainted in full,
+; or it can be left blank.
+OpaqueAgain(hwnd) {
+    try WinSetTransparent("Off", hwnd)
+    try DllCall("RedrawWindow", "Ptr", hwnd, "Ptr", 0, "Ptr", 0, "UInt", 0x585)
+}
+
+;==============================================================================
+; The on/off switch: a rounded track and a round knob with a soft shadow,
+; drawn once per theme in eight steps from off to on (the track's colour
+; blending from grey to the accent colour as the knob crosses).
+;==============================================================================
+class SwitchArt {
+    static W := 42, H := 24, N := 8, frames := [], owned := Map()
+
+    static Build() {
+        for h in this.frames
+            DllCall("DeleteObject", "Ptr", h)
+        this.frames := [], this.owned := Map()
+        if !Gdip.Start()
+            return
+        w := ToPhys(this.W), h := ToPhys(this.H)
+        loop this.N {
+            f := this.Draw(w, h, (A_Index - 1) / (this.N - 1))
+            this.frames.Push(f), this.owned[f] := true
+        }
+    }
+    static Frame(pos) => this.frames.Length ? this.frames[1 + Round(Max(0, Min(1, pos)) * (this.N - 1))] : 0
+    static Owns(h) => this.owned.Has(h)
+
+    static Draw(w, h, p) {
+        bg := Pal.content
+        DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", w, "Int", h, "Int", 0, "Int", 0x26200A, "Ptr", 0, "Ptr*", &bmp := 0)
+        DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", bmp, "Ptr*", &g := 0)
+        DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", g, "Int", 4)
+        DllCall("gdiplus\GdipGraphicsClear", "Ptr", g, "UInt", 0xFF000000 | Integer("0x" bg))
+        edge := Max(1, h * 0.04), th := h - 2 * edge, r := th / 2
+        ; the track, a pill
+        DllCall("gdiplus\GdipCreatePath", "Int", 0, "Ptr*", &path := 0)
+        DllCall("gdiplus\GdipAddPathArc", "Ptr", path, "Float", edge, "Float", edge, "Float", th, "Float", th, "Float", 90, "Float", 180)
+        DllCall("gdiplus\GdipAddPathArc", "Ptr", path, "Float", w - edge - th, "Float", edge, "Float", th, "Float", th, "Float", 270, "Float", 180)
+        DllCall("gdiplus\GdipClosePathFigure", "Ptr", path)
+        DllCall("gdiplus\GdipCreateSolidFill", "UInt", 0xFF000000 | Integer("0x" Mix(Pal.fieldHi, Pal.accent, p)), "Ptr*", &br := 0)
+        DllCall("gdiplus\GdipFillPath", "Ptr", g, "Ptr", br, "Ptr", path)
+        DllCall("gdiplus\GdipDeleteBrush", "Ptr", br), DllCall("gdiplus\GdipDeletePath", "Ptr", path)
+        ; the knob, with a soft shadow under it
+        d := th - 2 * Max(2, h * 0.12), kx := edge + (th - d) / 2 + p * (w - 2 * edge - th), ky := edge + (th - d) / 2
+        for sh in [[1.6, 0x30000000], [0.8, 0x28000000]] {
+            DllCall("gdiplus\GdipCreateSolidFill", "UInt", sh[2], "Ptr*", &br := 0)
+            DllCall("gdiplus\GdipFillEllipse", "Ptr", g, "Ptr", br, "Float", kx - sh[1] / 2, "Float", ky + sh[1], "Float", d + sh[1], "Float", d + sh[1] / 2)
+            DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+        }
+        DllCall("gdiplus\GdipCreateSolidFill", "UInt", 0xFF000000 | Integer("0x" Mix(Pal.dim, Pal.ink, p)), "Ptr*", &br := 0)
+        DllCall("gdiplus\GdipFillEllipse", "Ptr", g, "Ptr", br, "Float", kx, "Float", ky, "Float", d, "Float", d)
+        DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+        DllCall("gdiplus\GdipDeleteGraphics", "Ptr", g)
+        DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", bmp, "Ptr*", &hbm := 0, "UInt", 0xFF000000 | Integer("0x" bg))
+        DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
+        return hbm
     }
 }
 
@@ -3594,6 +4090,13 @@ WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
         PostMessage(0xA1, 2, 0, , "ahk_id " hwnd)
         return 0
     }
+    ; the sign-in window, and the opened sidebar: their buttons and tabs
+    if ((Login.g && hwnd = Login.g.Hwnd) || (Flyout.g && hwnd = Flyout.g.Hwnd)) {
+        h := ChildAt(hwnd, x, y)
+        if (h && Clickables.Has(h))
+            Press(h, Clickables[h])
+        return 0
+    }
     ; the small panel while fishing: Stop, or drag it anywhere
     if (Hud.g && hwnd = Hud.g.Hwnd) {
         if (ChildAt(hwnd, x, y) = Hud.stop.Hwnd)
@@ -3655,10 +4158,18 @@ Press(h, e) {
 }
 
 WM_MOUSEMOVE(wParam, lParam, msg, hwnd) {
+    if (UiReady && ((Flyout.g && hwnd = Flyout.g.Hwnd) || (Login.g && hwnd = Login.g.Hwnd))) {
+        x := lParam & 0xFFFF, y := (lParam >> 16) & 0xFFFF
+        SetHover(ChildAt(hwnd, x >= 0x8000 ? x - 0x10000 : x, y >= 0x8000 ? y - 0x10000 : y))
+        return
+    }
     if (!IsObject(MainGui) || hwnd != MainGui.Hwnd || !UiReady)
         return
     x := lParam & 0xFFFF, y := (lParam >> 16) & 0xFFFF
-    h := ChildAt(hwnd, x >= 0x8000 ? x - 0x10000 : x, y >= 0x8000 ? y - 0x10000 : y)
+    x := x >= 0x8000 ? x - 0x10000 : x, y := y >= 0x8000 ? y - 0x10000 : y
+    if (x < ToPhys(SIDEBAR_W) && y > ToPhys(46) && !FocusOn && !Flyout.isOpen)
+        SetTimer(FlyoutIntent, -90)                     ; resting on the icon strip opens the full sidebar
+    h := ChildAt(hwnd, x, y)
     SetHover(h)
     if !FocusOn
         ShowDesc(h && DescOf.Has(h) ? DescOf[h] : "")
@@ -3711,6 +4222,20 @@ WM_ERASEBKGND(wParam, lParam, msg, hwnd) {
     FillBand(wParam, sw + one, 0, W, H - s - one, Pal.content)          ; page
     FillBand(wParam, sw + one, H - s - one, W, H - s, Pal.seam)
     FillBand(wParam, sw + one, H - s, W, H, Pal.bar)                    ; status line
+    ; depth: the sidebar casts a soft shadow onto the page, and the status
+    ; line a shorter one upward (none in high contrast)
+    if (Cfg["Theme"] != "High contrast") {
+        n := ToPhys(9)
+        loop n {
+            i := A_Index - 1
+            FillBand(wParam, sw + one + i, 0, sw + one + i + 1, H - s - one, Mix(Pal.content, "000000", 0.30 * (1 - i / n) ** 2))
+        }
+        m := ToPhys(5)
+        loop m {
+            i := A_Index - 1
+            FillBand(wParam, sw + one + n, H - s - one - 1 - i, W, H - s - one - i, Mix(Pal.content, "000000", 0.20 * (1 - i / m) ** 2))
+        }
+    }
     return 1
 }
 
@@ -3760,10 +4285,12 @@ Paint(h, hot) {
         return
     for c in (e.HasOwnProp("objs") ? e.objs : [e.obj]) {
         try {
-            c.Opt("Background" (hot ? e.hv : e.bg))
             if (e.HasOwnProp("hvText") && e.hvText != "")
                 c.SetFont("c" (hot ? e.hvText : Pal.text))
-            c.Redraw()
+            if (e.bg = e.hv || c.Type = "Pic")
+                c.Opt("Background" (hot ? e.hv : e.bg)), c.Redraw()
+            else
+                FadeBack(c, hot ? e.bg : e.hv, hot ? e.hv : e.bg, hot ? 110 : 170, "hv" c.Hwnd)
         }
     }
 }
@@ -3791,6 +4318,11 @@ ChildAtCursor() {
     pt := Buffer(8, 0)
     DllCall("GetCursorPos", "Ptr", pt)
     top := DllCall("WindowFromPoint", "Int64", NumGet(pt, 0, "Int64"), "Ptr")
+    for pop in [Flyout.g, Login.g]
+        if (pop && (top = pop.Hwnd || DllCall("GetAncestor", "Ptr", top, "UInt", 1, "Ptr") = pop.Hwnd)) {
+            DllCall("ScreenToClient", "Ptr", pop.Hwnd, "Ptr", pt)
+            return ChildAt(pop.Hwnd, NumGet(pt, 0, "Int"), NumGet(pt, 4, "Int"))
+        }
     if (top != MainGui.Hwnd && DllCall("GetAncestor", "Ptr", top, "UInt", 1, "Ptr") != MainGui.Hwnd)
         return 0
     DllCall("ScreenToClient", "Ptr", MainGui.Hwnd, "Ptr", pt)
@@ -4166,7 +4698,7 @@ OpenSettingsFolder() {
 ; A small themed dialog owned by the main window.
 class Dialog {
     static g := 0, okFn := 0
-    static Show(title, body, okText := "Close", okFn := 0, cancelText := "") {
+    static Show(title, body, okText := "Close", okFn := 0, cancelText := "", scrollH := 0) {
         this.Close()
         if !IsObject(MainGui)
             return
@@ -4177,7 +4709,12 @@ class Dialog {
         SetFontFor(g, "norm s" FZ(14) " c" Pal.text, "display")
         g.Add("Text", Format("x{} y{} w{} Background{}", ZS(24), ZS(20), ZS(w - 48), Pal.bar), title)
         SetFontFor(g, "norm s" FZ(10) " c" Pal.text, "body")
-        b := g.Add("Text", Format("x{} y{} w{} Background{}", ZS(24), ZS(58), ZS(w - 48), Pal.bar), body)
+        if scrollH {
+            ; a long text (the update log) scrolls in a box of fixed height
+            b := g.Add("Edit", Format("x{} y{} w{} h{} ReadOnly Multi VScroll -E0x200 -TabStop Background{}", ZS(24), ZS(58), ZS(w - 40), ZS(scrollH), Pal.bar), StrReplace(body, "`n", "`r`n"))
+            DllCall("HideCaret", "Ptr", b.Hwnd)
+        } else
+            b := g.Add("Text", Format("x{} y{} w{} Background{}", ZS(24), ZS(58), ZS(w - 48), Pal.bar), body)
         b.GetPos(, &by, , &bh)
         y := by + bh + ZS(22), bw := ZS(120), bh2 := ZS(32)
         SetFontFor(g, "norm s" FZ(10) " c" Pal.ink, "body")
@@ -4192,8 +4729,13 @@ class Dialog {
         g.Show(Format("Hide w{} h{}", ZS(w), y + bh2 + ZS(22)))
         WinRect(g.Hwnd, &dx, &dy, &dw, &dh)
         WinGetPos(&mx, &my, &mw, &mh, "ahk_id " MainGui.Hwnd)
+        fade := !Cfg["ReduceMotion"]
+        if fade
+            WinSetTransparent(0, g.Hwnd)
         g.Show(Format("x{} y{}", mx + (mw - dw) // 2, my + (mh - dh) // 3))
         StyleWindow(g.Hwnd)
+        if fade
+            FadeWindow(g.Hwnd, 180)
         this.g := g, this.okFn := okFn
         Say(title ". " StrReplace(body, "`n", " "))
     }
@@ -4632,6 +5174,7 @@ ShowFromTray() {
 }
 
 Cleanup(reason, code) {
+    try DiscordAuth.Stop()
     ReleaseMouse()
     if !NoSave {
         SaveGeometry()
@@ -4758,7 +5301,7 @@ NewProfile(name, track, bar, fish, barW := 0) {
 FillProfile(p) {
     for k, v in Map("id", "", "name", "Rod", "track", [], "bar", [], "fish", [], "barW", 0
         , "tolT", 24, "tolB", 24, "tolF", 22, "edgeT", "", "edgeB", "", "sovereign", 0
-        , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0, "trkT", 0, "trkB", 0)
+        , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0, "trkT", 0, "trkB", 0, "minSwitch", 0)
         if !p.HasOwnProp(k)
             p.%k% := v
     return p
@@ -4801,6 +5344,12 @@ VisionScan(b, p, predFish := -1) {
         return CapScan(b, b.geo, predFish, p)
     if (p.kind = "lite")
         return LiteScan(b, b.geo, predFish, p)
+    if (p.kind = "teal")
+        return TealScan(b, b.geo, predFish, p)
+    if (p.kind = "wood")
+        return WoodScan(b, b.geo, predFish, p)
+    if (p.kind = "sun")
+        return SunScan(b, b.geo, predFish, p)
     w := b.w, cols := b.cols, lab := b.lab, lut := p.lut, covered := 0, x := 0
     while (x < w) {
         c := NumGet(cols, x * 4, "UInt")
@@ -5288,6 +5837,29 @@ ProbeLib(b, lib) {
     for h in lib.fish
         fishes.Push(Integer("0x" h))
     green := lib.HasOwnProp("greenBar") && lib.greenBar
+    if (lib.HasOwnProp("kind") && lib.kind = "wood") {
+        ; Verdant Oath (see WoodScan)
+        q := {barW: 0, boxPrev: -1}
+        d := WoodScan(b, b.geo, -1, q)
+        if !(d.bar && d.fish)
+            return 0
+        p := FillProfile({name: CurRodName != "" ? CurRodName : lib.name, lib: lib.id, kind: "wood", greenBar: true
+            , barW: (d.br - d.bl + 1) / b.w, id: "rod:" (CurRodName != "" ? CurRodName : lib.id)})
+        ResetLut(p)
+        return {prof: p, d: d}
+    }
+    if (lib.HasOwnProp("kind") && (lib.kind = "teal" || lib.kind = "sun")) {
+        ; Requiem and Apollo's Sunshot (see TealScan, SunScan)
+        q := {barW: 0, boxPrev: -1}
+        d := lib.kind = "sun" ? SunScan(b, b.geo, -1, q) : TealScan(b, b.geo, -1, q)
+        if !(d.bar && d.fish)
+            return 0
+        p := FillProfile({name: CurRodName != "" ? CurRodName : lib.name, lib: lib.id, kind: lib.kind
+            , barW: (d.br - d.bl + 1) / b.w, id: "rod:" (CurRodName != "" ? CurRodName : lib.id)
+            , minSwitch: lib.HasOwnProp("minSwitch") ? lib.minSwitch : 0})
+        ResetLut(p)
+        return {prof: p, d: d}
+    }
     if (lib.HasOwnProp("kind") && lib.kind = "lite") {
         ; Pinion's Aria without a skin (see LiteScan)
         q := {trkT: 0, trkB: 0, barW: 0}
@@ -5737,6 +6309,17 @@ BoxScan(b, geo, predFish := -1, p := 0, now := -1) {
         ShapeWhy := "no two tall black bar sides a bar-width apart on the reel"
     else if p {
         p.boxMiss := 0
+        ; the bar can change size during a reel: the width expected follows
+        ; the median of recent readings of both sides
+        if (bl >= 0 && br > bl) {
+            if !p.HasOwnProp("boxWs")
+                p.boxWs := []
+            p.boxWs.Push(br - bl)
+            if (p.boxWs.Length > 15)
+                p.boxWs.RemoveAt(1)
+            if (p.boxWs.Length >= 5)
+                p.barW := ZMedian(p.boxWs) / w
+        }
         if (top >= 0 && bot - top >= minH)
             p.boxH := bot - top
     }
@@ -6426,6 +7009,23 @@ ZoneRow(b, geo) {
 }
 
 ;------------------------------------------------------------------------------
+; Narrow runs along row y whose pixels pass test: their centres.
+LiteColourRuns(b, y, lo, hi, test) {
+    o := y * b.stride, out := [], st := -1, x := 0
+    while (x <= b.w) {
+        on := x < b.w && test(NumGet(b.bits, o + x * 4, "UInt"))
+        if (on && st < 0)
+            st := x
+        else if (!on && st >= 0) {
+            if (x - st >= lo && x - st <= hi)
+                out.Push(st + (x - st - 1) / 2)
+            st := -1
+        }
+        x++
+    }
+    return out
+}
+
 ; Pinion's Aria without a skin. A pale tube; the bar is a rounded box a little
 ; taller than the tube (pastel with the fish in it, dark red without, with a
 ; light border either way), and the fish is a capsule taller still whose top
@@ -6439,26 +7039,24 @@ Lum(c) => (((c >> 16) & 255) * 2 + ((c >> 8) & 255) * 5 + (c & 255)) >> 3
 ; The tube's top and bottom rows in the band: rows where one bright run
 ; crosses most of the band, around the reel area's middle. [top, bottom] or 0.
 LiteRows(b, geo) {
-    long := []
-    y := 0
+    ; a tube row is largely pale and washed-out (the tube, and the bar in
+    ; most of its looks) or the bar's bright red; the scene behind is more
+    ; saturated. No single run is required: the bar can cut the tube in two.
+    long := [], y := 0
     while (y < b.h) {
-        o := y * b.stride, best := 0, rs := -1, x := 0
-        while (x <= b.w) {
-            on := x < b.w && Lum(NumGet(b.bits, o + x * 4, "UInt")) >= 120
-            if (on && rs < 0)
-                rs := x
-            else if (!on && rs >= 0) {
-                best := Max(best, x - rs), rs := -1
-            }
-            x += 1
+        o := y * b.stride, n := 0, x := 0
+        while (x < b.w) {
+            c := NumGet(b.bits, o + x * 4, "UInt")
+            r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255
+            n += (Lum(c) >= 130 && Max(r, g, bb) - Min(r, g, bb) <= 60) || (r >= 150 && r - g >= 80)
+            x += 2
         }
-        if (best >= b.w * 0.6)
+        if (2 * n >= b.w * 0.45)
             long.Push(y)
         y += 1
     }
     if (long.Length < 3)
         return 0
-    ; the run of rows containing (or nearest) the reel area's middle
     mid := geo.m + geo.ih // 2, top := long[1], bot := long[1], bestT := 0, bestB := 0, bestD := 1e9
     for i, y in long {
         if (i > 1 && y - long[i - 1] > 2)
@@ -6471,25 +7069,39 @@ LiteRows(b, geo) {
     return bestB - bestT >= 4 ? [bestT, bestB] : 0
 }
 
-; Bright runs along row y, a bar-width long: [[left, right], ...].
+; Runs along row y, a bar-width long, of pixels clearly unlike the row's
+; background (the bar box is pastel, dark red-grey or bright red, so it's told
+; from the background by colour, not brightness): [[left, right], ...].
 LiteBarRuns(b, y, lo, hi) {
-    o := y * b.stride, v := "", x := 0
+    o := y * b.stride, rs := [], gs := [], bs := [], x := 0
     while (x < b.w) {
-        v .= Format("{:03}", Lum(NumGet(b.bits, o + x * 4, "UInt"))) "`n"
+        c := NumGet(b.bits, o + x * 4, "UInt")
+        rs.Push(Format("{:03}", (c >> 16) & 255)), gs.Push(Format("{:03}", (c >> 8) & 255)), bs.Push(Format("{:03}", c & 255))
         x += 8
     }
-    a := StrSplit(Sort(RTrim(v, "`n")), "`n"), thr := Max(120, Integer(a[(a.Length + 1) // 2]) + 35)
-    out := [], rs := -1, gap := 0, x := 0
+    med(a) {
+        t := ""
+        for v in a
+            t .= v "`n"
+        q := StrSplit(Sort(RTrim(t, "`n")), "`n")
+        return Integer(q[(q.Length + 1) // 2])
+    }
+    br := med(rs), bg := med(gs), bb := med(bs)
+    out := [], st := -1, gap := 0, last := 0, x := 0
     while (x <= b.w) {
-        on := x < b.w && Lum(NumGet(b.bits, o + x * 4, "UInt")) >= thr
+        on := false
+        if (x < b.w) {
+            c := NumGet(b.bits, o + x * 4, "UInt")
+            on := Max(Abs(((c >> 16) & 255) - br), Abs(((c >> 8) & 255) - bg), Abs((c & 255) - bb)) > 50
+        }
         if on {
-            if (rs < 0)
-                rs := x
+            if (st < 0)
+                st := x
             gap := 0, last := x
-        } else if (rs >= 0 && ++gap > 3) {
-            if (last - rs + 1 >= lo && last - rs + 1 <= hi)
-                out.Push([rs, last])
-            rs := -1
+        } else if (st >= 0 && ++gap > 3) {
+            if (last - st + 1 >= lo && last - st + 1 <= hi)
+                out.Push([st, last])
+            st := -1
         }
         x++
     }
@@ -6516,27 +7128,21 @@ LiteScan(b, geo, predFish := -1, p := 0) {
     if (p && p.HasOwnProp("liteWs") && p.liteWs.Length >= 5)
         barW := ZMedian(p.liteWs) / w
     lo := barW ? 0.85 * barW * w : w * 0.2, hi := barW ? 1.15 * barW * w : w * 0.6
-    ; the fish: a narrow, strongly cyan run just above the tube
-    o := yU * b.stride, fishes := [], rs := -1, x := 0, fLo := Max(3, Round(w * 0.004)), fHi := Max(8, Round(w * 0.02))
-    while (x <= w) {
-        on := false
-        if (x < w) {
-            c := NumGet(b.bits, o + x * 4, "UInt")
-            on := (c & 255) >= 200 && (c & 255) - ((c >> 16) & 255) >= 120
-        }
-        if (on && rs < 0)
-            rs := x
-        else if (!on && rs >= 0) {
-            if (x - rs >= fLo && x - rs <= fHi)
-                fishes.Push(rs + (x - rs - 1) / 2)
-            rs := -1
-        }
-        x++
-    }
+    ; the fish: a capsule whose top is strongly cyan and reaches well above the
+    ; bar box: a narrow cyan run just above the tube and another higher up,
+    ; above the box, at the same place (other cyan things don't reach there)
+    fLo := Max(3, Round(w * 0.004)), fHi := Max(8, Round(w * 0.02)), tol := Max(3, Round(w * 0.006))
+    yF := Max(0, rows[1] - Round(th * 0.33))
+    cyan := (c) => (c & 255) >= 200 && (c & 255) - ((c >> 16) & 255) >= 120
+    lowC := LiteColourRuns(b, yU, fLo, fHi, cyan), highC := LiteColourRuns(b, yF, fLo, fHi, cyan)
     fx := -1, fb := 1e9
-    for f in fishes
-        if ((sc := predFish >= 0 ? Abs(f - predFish) : 0) < fb)
-            fb := sc, fx := f
+    for u in lowC
+        for v in highC
+            if (Abs(u - v) <= tol) {
+                cen := (u + v) / 2, sc := predFish >= 0 ? Abs(cen - predFish) : 0
+                if (sc < fb)
+                    fb := sc, fx := cen
+            }
     none.fish := fx >= 0, none.fx := fx, none.fishCol := fx >= 0
     ; the bar: the same bright run just above and just below the tube
     up := LiteBarRuns(b, yU, lo, hi), dn := LiteBarRuns(b, yD, lo, hi)
@@ -6574,6 +7180,237 @@ LiteScan(b, geo, predFish := -1, p := 0) {
     bl := Round(bl) + 4, br := Round(br) - 4
     return {bar: true, bl: bl, br: br, fish: fx >= 0, fx: fx, cover: 1, n: br - bl + 1, fishCol: fx >= 0}
 }
+
+;------------------------------------------------------------------------------
+; Requiem. A dark track; the bar is a teal box (darker at its top, brighter
+; below) with black arrows in it; the fish is a dark capsule, nearly the
+; track's colour, that sticks out above and below the box. So the bar is the
+; long teal run across the reel (bridging the arrows and the fish), and the
+; fish a narrow dark run just above the box and just below it, where the
+; scene behind is lighter. Measured on a real Requiem reel.
+;------------------------------------------------------------------------------
+TealPx(c) => Lum(c) >= 45 && ((c >> 8) & 255) - ((c >> 16) & 255) >= 30
+
+TealScan(b, geo, predFish := -1, p := 0, test := TealPx, edgeLum := 85, what := "teal") {
+    global ShapeWhy
+    w := b.w, none := {bar: false, bl: -1, br: -1, fish: false, fx: -1, cover: 0, n: 0, fishCol: false}
+    ; the bar along the reel's middle rows (each column's middle colour)
+    bridge := Max(6, Round(w * 0.035)), best := 0, st := -1, gap := 0, last := 0, x := 0
+    while (x <= w) {
+        on := x < w && test(NumGet(b.cols, x * 4, "UInt"))
+        if on {
+            if (st < 0)
+                st := x
+            gap := 0, last := x
+        } else if (st >= 0 && ++gap > bridge) {
+            if (!best || last - st > best[2] - best[1])
+                best := [st, last]
+            st := -1
+        }
+        x++
+    }
+    barW := p ? p.barW : 0
+    if (!best || best[2] - best[1] < w * 0.12 || best[2] - best[1] > w * 0.9) {
+        ShapeWhy := "no " what " bar across the reel"
+        none.fish := false
+        return none
+    }
+    bl := best[1], br := best[2]
+    ; the box's top and bottom: going up and down its own columns (a third
+    ; and two thirds across, clear of the arrows) until the lighter scene
+    ; behind begins (the box's top is too dark to follow by its teal)
+    top := b.h, bot := 0
+    for f in [0.33, 0.67] {
+        cx := Round(bl + (br - bl) * f), o := cx * 4, t := geo.r2, u := geo.r2
+        while (t > 0 && Lum(NumGet(b.bits, (t - 1) * b.stride + o, "UInt")) < edgeLum)
+            t--
+        while (u < b.h - 1 && Lum(NumGet(b.bits, (u + 1) * b.stride + o, "UInt")) < edgeLum)
+            u++
+        top := Min(top, t), bot := Max(bot, u)
+    }
+    if (bot - top < 6)
+        top := geo.m, bot := geo.m + geo.ih
+    ; the fish: a narrow run just above the box, clearly darker than the scene
+    ; there; confirmed (when it can be) by a darker run just below the box,
+    ; where the capsule is paler
+    off := Max(2, Round((bot - top) * 0.06))
+    up := TealDarkRuns(b, Clamp(top - off, 0, b.h - 1), w, 40), dn := TealDarkRuns(b, Clamp(bot + off, 0, b.h - 1), w, 12)
+    fx := -1, fb := 1e9, tol := Max(3, Round(w * 0.006))
+    for u in up {
+        conf := false
+        for v in dn
+            if (Abs(u - v) <= tol)
+                conf := true
+        sc := (conf ? 0 : w * 0.1) + (predFish >= 0 ? Abs(u - predFish) : 0)
+        if (sc < fb)
+            fb := sc, fx := u
+    }
+    if p
+        p.boxPrev := (bl + br) / 2
+    return {bar: true, bl: bl, br: br, fish: fx >= 0, fx: fx, cover: 1, n: br - bl + 1, fishCol: fx >= 0}
+}
+
+; Narrow runs along row y darker than the row's typical brightness by delta:
+; their centres.
+TealDarkRuns(b, y, w, delta) {
+    o := y * b.stride, v := "", x := 0
+    while (x < w) {
+        v .= Format("{:03}", Lum(NumGet(b.bits, o + x * 4, "UInt"))) "`n"
+        x += 8
+    }
+    a := StrSplit(Sort(RTrim(v, "`n")), "`n"), thr := Integer(a[(a.Length + 1) // 2]) - delta
+    out := [], st := -1, x := 0, lo := Max(3, Round(w * 0.004)), hi := Max(8, Round(w * 0.025))
+    while (x <= w) {
+        on := x < w && Lum(NumGet(b.bits, o + x * 4, "UInt")) < thr
+        if (on && st < 0)
+            st := x
+        else if (!on && st >= 0) {
+            if (x - st >= lo && x - st <= hi)
+                out.Push(st + (x - st - 1) / 2)
+            st := -1
+        }
+        x++
+    }
+    return out
+}
+
+;------------------------------------------------------------------------------
+; Verdant Oath. The bar is two brown wooden blocks with the green zone between
+; them (bright at its edges, nearly black in the middle, growing as the fish
+; is kept in it); the fish is a grey capsule that sticks out above and below
+; the blocks. So the blocks are found as two brown runs of about the same
+; width, the bar spans their outer edges and the zone is the gap between them;
+; the fish is a narrow grey run just above the blocks and just below them.
+; Measured on a real Verdant Oath reel.
+;------------------------------------------------------------------------------
+WoodPx(c) {
+    r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255
+    return (r >= 78 && r - bb >= 35 && g - bb >= 12 && r >= g + 10)   ; brown
+        || (r >= 90 && r - g >= 50 && r - bb >= 50)                     ; dark red (the red flash)
+}
+GreyPx(c) {
+    r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255, l := Lum(c)
+    return Max(r, g, bb) - Min(r, g, bb) <= 30 && l >= 45 && l <= 125
+}
+
+WoodScan(b, geo, predFish := -1, p := 0) {
+    global ShapeWhy
+    w := b.w, none := {bar: false, bl: -1, br: -1, fish: false, fx: -1, cover: 0, n: 0, fishCol: false}
+    ; brown runs along the reel's middle rows (each column's middle colour)
+    runs := [], st := -1, gap := 0, last := 0, x := 0
+    while (x <= w) {
+        on := x < w && WoodPx(NumGet(b.cols, x * 4, "UInt"))
+        if on {
+            if (st < 0)
+                st := x
+            gap := 0, last := x
+        } else if (st >= 0 && ++gap > 3) {
+            if (last - st >= w * 0.03 && last - st <= w * 0.25)
+                runs.Push([st, last])
+            st := -1
+        }
+        x++
+    }
+    ; the two blocks: about the same width, the zone between them. At either
+    ; end of the reel the outer block can run past the edge of what's watched:
+    ; a block touching the edge is taken as the other's width.
+    prev := (p && p.HasOwnProp("boxPrev") && p.boxPrev >= 0) ? p.boxPrev : -1
+    best := 0, bs := 1e9
+    for i, a in runs
+        for j, z in runs {
+            if (j <= i)
+                continue
+            wa := a[2] - a[1], wz := z[2] - z[1], gz := z[1] - a[2]
+            cutA := a[1] <= 2, cutZ := z[2] >= w - 3
+            if (gz < w * 0.01 || gz > w * 0.7)
+                continue
+            if (!cutA && !cutZ && Min(wa, wz) < 0.6 * Max(wa, wz))
+                continue
+            if (cutA && wa > wz * 1.2 || cutZ && wz > wa * 1.2)
+                continue
+            sc := ((cutA || cutZ) ? 0 : Abs(wa - wz)) + (prev >= 0 ? 0.25 * Abs((a[1] + z[2]) / 2 - prev) : 0)
+            if (sc < bs)
+                bs := sc, best := [a, z, cutA, cutZ]
+        }
+    if !best {
+        ShapeWhy := Format("{} brown block(s) on the reel, but no matching pair", runs.Length)
+        return none
+    }
+    a := best[1], z := best[2], bl := a[1], br := z[2], zc := (a[2] + z[1]) / 2
+    if best[3]
+        bl := a[2] - (z[2] - z[1])                ; left block partly out of view
+    if best[4]
+        br := z[1] + (a[2] - a[1])                ; right block partly out of view
+    ; the blocks' top and bottom, down the middle of the left block
+    cx := (a[1] + a[2]) // 2, o := cx * 4, top := geo.r2, bot := geo.r2
+    while (top > 0 && WoodPx(NumGet(b.bits, (top - 1) * b.stride + o, "UInt")))
+        top--
+    while (bot < b.h - 1 && WoodPx(NumGet(b.bits, (bot + 1) * b.stride + o, "UInt")))
+        bot++
+    if (bot - top < 6)
+        top := geo.m, bot := geo.m + geo.ih
+    ; the fish: narrow and grey just above the blocks and just below them
+    off := Max(2, Round((bot - top) * 0.15))
+    up := WoodGreyRuns(b, Clamp(top - off, 0, b.h - 1), w), dn := WoodGreyRuns(b, Clamp(bot + off, 0, b.h - 1), w)
+    fx := -1, fb := 1e9, tol := Max(3, Round(w * 0.006))
+    for u in up
+        for v in dn
+            if (Abs(u - v) <= tol) {
+                cen := (u + v) / 2, sc := predFish >= 0 ? Abs(cen - predFish) : 0
+                if (sc < fb)
+                    fb := sc, fx := cen
+            }
+    ; or, failing that, a narrow grey run along the reel's middle rows (it shows
+    ; against the dark track, the brown blocks and the zone)
+    if (fx < 0) {
+        st := -1, x := 0, lo := Max(3, Round(w * 0.003)), hi := Max(8, Round(w * 0.02))
+        while (x <= w) {
+            on := x < w && GreyPx(NumGet(b.cols, x * 4, "UInt"))
+            if (on && st < 0)
+                st := x
+            else if (!on && st >= 0) {
+                if (x - st >= lo && x - st <= hi) {
+                    cen := st + (x - st - 1) / 2, sc := predFish >= 0 ? Abs(cen - predFish) : 0
+                    if (sc < fb)
+                        fb := sc, fx := cen
+                }
+                st := -1
+            }
+            x++
+        }
+    }
+    if p
+        p.boxPrev := (bl + br) / 2
+    return {bar: true, bl: bl, br: br, zc: zc, fish: fx >= 0, fx: fx, cover: 1, n: br - bl + 1, fishCol: fx >= 0}
+}
+
+WoodGreyRuns(b, y, w) {
+    o := y * b.stride, out := [], st := -1, x := 0, lo := Max(3, Round(w * 0.004)), hi := Max(8, Round(w * 0.02))
+    while (x <= w) {
+        on := x < w && GreyPx(NumGet(b.bits, o + x * 4, "UInt"))
+        if (on && st < 0)
+            st := x
+        else if (!on && st >= 0) {
+            if (x - st >= lo && x - st <= hi)
+                out.Push(st + (x - st - 1) / 2)
+            st := -1
+        }
+        x++
+    }
+    return out
+}
+
+;------------------------------------------------------------------------------
+; Apollo's Sunshot. Built like Requiem's reel: a dark track; the bar a brown
+; box (with a yellow arrow) a little taller than the track; the fish a dark
+; capsule sticking out above and below the box. The charge meter riding above
+; the bar isn't read. Measured on a real Apollo's Sunshot reel.
+;------------------------------------------------------------------------------
+SunPx(c) {
+    r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255
+    return r >= 60 && r - bb >= 25 && r - g >= 15
+}
+SunScan(b, geo, predFish := -1, p := 0) => TealScan(b, geo, predFish, p, SunPx, 76, "brown")
 
 
 ;==============================================================================
@@ -6763,6 +7600,8 @@ TotemDue() {
 }
 
 RunTotems() {
+    if IsGuest()
+        return
     for t in Totems {
         if !Running
             return
@@ -6860,6 +7699,8 @@ UiSpot(name, cr) {
 }
 
 RunSovereign() {
+    if IsGuest()
+        return
     global SovReels, SovLast
     SovReels := 0
     cr := RobloxHwnd ? ClientRect(RobloxHwnd) : 0
@@ -6953,6 +7794,8 @@ HookUrlOk(url) {
 
 Alert(kind, msg, shot := false) {
     global HookQueue
+    if IsGuest()                                ; Discord alerts need a Discord sign-in
+        return
     if (Cfg["HookUrl"] = "" || !HookUrlOk(Cfg["HookUrl"]))
         return
     if (HookKinds.Has(kind) && !Cfg[HookKinds[kind]])
@@ -7208,7 +8051,7 @@ FlagDisconnect(why) {
         ReconnectWhy := why
 }
 
-ReconnectDue() => Cfg["AutoReconnect"] && ReconnectWhy != ""
+ReconnectDue() => Cfg["AutoReconnect"] && ReconnectWhy != "" && !IsGuest()
 
 ; Turns whatever link the user pasted into something Windows can open.
 RejoinTarget() {
@@ -7589,6 +8432,45 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+4.8.0
+- Sign in with Discord: FISCHXR asks at start (or continue as a guest). Signing in opens the FISCHXR Discord server.
+- Guests can fish; Discord alerts, auto-reconnect, the aquarium, totems and Sovereign need a Discord sign-in.
+- The sign-in is remembered (encrypted for your Windows account) and shown in Settings, where you can sign out.
+
+4.7.0
+- Everything moves smoothly: one animation engine eases every movement in the background, so nothing makes the window wait.
+- Switches: on/off settings are sliding switches with a soft-shadowed knob.
+- Depth: soft shadows where the sidebar and status line meet the page; the opened sidebar floats with rounded corners and a shadow.
+- Motion: buttons fade on hover, pages glide in, the status fades in when it changes, counters flash as they rise, the window and dialogs fade in, the fishing panel glides in, and the status dot breathes while fishing. All of it is off with Reduce motion.
+
+4.6.1
+- The sidebar is quick again. Its animations run in the background instead of making the window wait, it's only repositioned when the window has moved, it opens once the mouse rests on it (not when passing over), and switching tabs only repaints what changed.
+
+4.6.0
+- New look: the sidebar is a narrow strip of icons that opens to the full sidebar when the mouse is on it. The window is narrower to match.
+- More movement: the sidebar opens and shuts smoothly, the active tab's mark slides between tabs, dialogs fade in, and the status dot breathes while fishing (all off with Reduce motion).
+- What's new scrolls in a box of fixed size.
+- Apollo's Sunshot is supported (its charge meter fills on its own as the bar is steered).
+- All rods: the bar is followed as it changes size during a reel. Before, a bar that grew or shrank a lot could be taken for scenery and the reel ended early.
+
+4.5.3
+- All rods: with the fish near either end, the bar is held against that end instead of bouncing off it.
+- Verdant Oath: the bar is no longer lost at either end of the reel (a block partly out of view is still read), or during the red flash.
+
+4.5.2
+- Verdant Oath: the reel is read by its shape: the two brown blocks give the bar, the gap between them is the green zone, and the grey fish is found above and below them. The fish is aimed at the middle of the zone.
+
+4.5.1
+- Requiem: no shake inputs once its reel appears, and inputs at least 200 ms apart (Requiem lost the fish to fast inputs).
+- All rods: no shake input on a frame where a reel is showing.
+
+4.5.0
+- Requiem is supported: its teal bar and dark fish are read by their own shape, and the mouse is never pressed or released faster than every 120 ms, since fast inputs snap Requiem's line.
+
+4.4.9
+- Pinion's Aria without a skin: the bright red bar is read (it was taken for the reel ending), and other cyan things nearby are no longer taken for the fish.
+- All rods: steadier. A fish reading far from where the fish just was is ignored unless the next one agrees, and with the fish well inside the bar the bar is held still instead of chasing the exact centre.
+
 4.4.8
 - Pinion's Aria without a skin now works: its pale tube, pastel or red bar and cyan-topped fish are read by their own shape.
 - Pinion's Aria (both looks): the bar is followed as it widens with caught notes and narrows with missed ones, instead of being lost.
@@ -7651,7 +8533,7 @@ ChangelogText() {
 )"
 }
 
-ShowWhatsNew(*) => Dialog.Show("What's new in " APP_VER, ChangelogText(), "Close")
+ShowWhatsNew(*) => Dialog.Show("What's new in " APP_VER, ChangelogText(), "Close", 0, "", 250)
 
 ; Once per version: note it, and show What's new after an upgrade.
 WhatsNewCheck() {
@@ -7874,6 +8756,420 @@ SaveUnmatched(b) {
         while (files.Length > 10)
             FileDelete(files.RemoveAt(1))
     }
+}
+
+
+;==============================================================================
+; Discord sign-in. The browser signs in on Discord's own page and is sent back
+; to a small listener on this PC (127.0.0.1 only), whose page hands the login
+; to the macro. Only the "identify" permission is asked for; no password or
+; client secret is involved. The login is kept encrypted for this Windows
+; user, and checked with Discord at each start.
+;==============================================================================
+IsGuest() => AuthState.mode != "discord"
+TabLocked(name) {
+    if !IsGuest()
+        return false
+    for t in GUEST_TABS
+        if (t = name)
+            return true
+    return false
+}
+UnixNow() => DateDiff(A_NowUTC, "19700101000000", "Seconds")
+SaveAuth() {
+    for k in ["AuthMode", "AuthTok", "AuthExp", "AuthName", "AuthId"]
+        try Save(k)
+}
+
+; At start: a remembered sign-in is checked with Discord; otherwise the
+; sign-in window. What's new follows.
+AuthBoot() {
+    if AuthTest.noPrompt                        ; (a test harness: set as the macro loads)
+        return
+    if (Cfg["AuthMode"] = "discord" && Cfg["AuthTok"] != "" && Cfg["AuthExp"] > UnixNow() + 60) {
+        tok := Unprotect(Cfg["AuthTok"])
+        if (tok != "") {
+            me := DiscordMe(tok, &status)
+            if IsObject(me)
+                return (SignedIn(me, tok, Cfg["AuthExp"], false), SetTimer(WhatsNewCheck, -600))
+            if (status = 0 && Cfg["AuthName"] != "")    ; offline: the remembered sign-in holds until it expires
+                return (SignedIn({id: Cfg["AuthId"], name: Cfg["AuthName"]}, tok, Cfg["AuthExp"], false), SetTimer(WhatsNewCheck, -600))
+        }
+    }
+    Login.Show()
+}
+
+SignedIn(me, tok, exp, fresh) {
+    AuthState.mode := "discord", AuthState.id := me.id, AuthState.name := me.name
+    Cfg["AuthMode"] := "discord", Cfg["AuthTok"] := Protect(tok), Cfg["AuthExp"] := exp
+    Cfg["AuthName"] := me.name, Cfg["AuthId"] := me.id
+    SaveAuth()
+    if fresh {
+        LogEvent("Signed in with Discord as " me.name)
+        if AuthTest.noBrowser
+            AuthTest.opened := DISCORD_INVITE
+        else
+            try Run(DISCORD_INVITE)              ; the FISCHXR Discord server
+    }
+    ApplyAuth()
+}
+
+SignOut(prompt := true) {
+    AuthState.mode := "guest", AuthState.id := "", AuthState.name := ""
+    for k in ["AuthMode", "AuthTok", "AuthName", "AuthId"]
+        Cfg[k] := ""
+    Cfg["AuthExp"] := 0
+    SaveAuth()
+    LogEvent("Signed out")
+    ApplyAuth()
+    if prompt
+        Login.Show()
+}
+
+ApplyAuth() {
+    PaintAccount()
+    if (UiReady && IsObject(MainGui) && Pages.Has(CurTab))
+        SwitchTab(CurTab, false)
+}
+
+; Who the token belongs to: {id, name}, or 0. status is the HTTP status (0 = no answer).
+DiscordMe(tok, &status := 0) {
+    status := 0
+    if AuthTest.me {
+        f := AuthTest.me
+        me := f(tok)
+        status := IsObject(me) ? 200 : 401
+        return me
+    }
+    try {
+        req := ComObject("WinHttp.WinHttpRequest.5.1")
+        req.Open("GET", "https://discord.com/api/v10/users/@me", false)
+        req.SetTimeouts(5000, 5000, 5000, 5000)
+        req.SetRequestHeader("Authorization", "Bearer " tok)
+        req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
+        req.Send()
+        status := req.Status
+        if (status != 200)
+            return 0
+        js := req.ResponseText, id := JsonField(js, "id"), nm := JsonField(js, "global_name")
+        if (nm = "")
+            nm := JsonField(js, "username")
+        return id != "" ? {id: id, name: nm} : 0
+    }
+    return 0
+}
+
+; Encrypts text for this Windows user (DPAPI), as base64, and back.
+Protect(text) {
+    if (text = "")
+        return ""
+    n := StrPut(text, "UTF-8") - 1, src := Buffer(n + 1), StrPut(text, src, "UTF-8")
+    blobIn := Buffer(16, 0), blobOut := Buffer(16, 0)
+    NumPut("UInt", n, blobIn, 0), NumPut("Ptr", src.Ptr, blobIn, 8)
+    if !DllCall("crypt32\CryptProtectData", "Ptr", blobIn, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 1, "Ptr", blobOut)
+        return ""
+    cb := NumGet(blobOut, 0, "UInt"), pb := NumGet(blobOut, 8, "Ptr")
+    DllCall("crypt32\CryptBinaryToString", "Ptr", pb, "UInt", cb, "UInt", 0x40000001, "Ptr", 0, "UInt*", &chars := 0)
+    out := Buffer(chars * 2)
+    DllCall("crypt32\CryptBinaryToString", "Ptr", pb, "UInt", cb, "UInt", 0x40000001, "Ptr", out, "UInt*", &chars)
+    DllCall("LocalFree", "Ptr", pb)
+    return StrGet(out)
+}
+Unprotect(b64) {
+    if (b64 = "")
+        return ""
+    if !DllCall("crypt32\CryptStringToBinary", "Str", b64, "UInt", 0, "UInt", 1, "Ptr", 0, "UInt*", &n := 0, "Ptr", 0, "Ptr", 0)
+        return ""
+    raw := Buffer(n)
+    DllCall("crypt32\CryptStringToBinary", "Str", b64, "UInt", 0, "UInt", 1, "Ptr", raw, "UInt*", &n, "Ptr", 0, "Ptr", 0)
+    blobIn := Buffer(16, 0), blobOut := Buffer(16, 0)
+    NumPut("UInt", n, blobIn, 0), NumPut("Ptr", raw.Ptr, blobIn, 8)
+    if !DllCall("crypt32\CryptUnprotectData", "Ptr", blobIn, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 1, "Ptr", blobOut)
+        return ""
+    cb := NumGet(blobOut, 0, "UInt"), pb := NumGet(blobOut, 8, "Ptr")
+    text := StrGet(pb, cb, "UTF-8")
+    DllCall("LocalFree", "Ptr", pb)
+    return text
+}
+
+; "%41+b" -> "A b"
+UrlDecode(s) {
+    s := StrReplace(s, "+", " "), out := Buffer(StrPut(s, "UTF-8") + 1), n := 0, i := 1, L := StrLen(s)
+    while (i <= L) {
+        c := SubStr(s, i, 1)
+        if (c = "%" && RegExMatch(SubStr(s, i + 1, 2), "^[0-9A-Fa-f]{2}$")) {
+            NumPut("UChar", Integer("0x" SubStr(s, i + 1, 2)), out, n)
+            n += 1, i += 3
+        } else {
+            n += StrPut(c, out.Ptr + n, "UTF-8") - 1
+            i += 1
+        }
+    }
+    return StrGet(out, n, "UTF-8")
+}
+
+class DiscordAuth {
+    static sock := 0, client := 0, buf := "", state := "", t0 := 0, cT := 0, ticker := 0, whenDone := 0
+
+    ; Opens Discord's sign-in page and waits for the browser to come back.
+    ; whenDone(ok, tokenOrMessage, expiresIn) is called once.
+    static Begin(whenDone) {
+        this.Stop()
+        this.whenDone := whenDone
+        if !this.Listen()
+            return this.Finish(false, "Couldn't start the sign-in listener (port " DISCORD_PORT " is in use). Close other copies of FISCHXR and try again.")
+        this.state := AuthTest.state != "" ? AuthTest.state : Format("{:08x}{:08x}", Random(0, 0x7FFFFFFF), Random(0, 0x7FFFFFFF))
+        url := "https://discord.com/oauth2/authorize?client_id=" DISCORD_CLIENT_ID "&response_type=token"
+            . "&redirect_uri=http%3A%2F%2F127.0.0.1%3A" DISCORD_PORT "%2Fcallback&scope=identify&state=" this.state
+        if !AuthTest.noBrowser
+            try Run(url)
+        this.t0 := A_TickCount
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Poll")
+        SetTimer(this.ticker, 100)
+    }
+
+    static Listen() {
+        static started := false
+        if !started {
+            if DllCall("ws2_32\WSAStartup", "UShort", 0x0202, "Ptr", Buffer(408, 0))
+                return false
+            started := true
+        }
+        s := DllCall("ws2_32\socket", "Int", 2, "Int", 1, "Int", 6, "Ptr")
+        if (s = -1)
+            return false
+        addr := Buffer(16, 0)
+        NumPut("UShort", 2, addr, 0), NumPut("UShort", DllCall("ws2_32\htons", "UShort", DISCORD_PORT, "UShort"), addr, 2)
+        NumPut("UInt", 0x0100007F, addr, 4)                                  ; 127.0.0.1 only
+        if (DllCall("ws2_32\bind", "Ptr", s, "Ptr", addr, "Int", 16) != 0 || DllCall("ws2_32\listen", "Ptr", s, "Int", 4) != 0) {
+            DllCall("ws2_32\closesocket", "Ptr", s)
+            return false
+        }
+        DllCall("ws2_32\ioctlsocket", "Ptr", s, "UInt", 0x8004667E, "UInt*", 1)   ; non-blocking
+        this.sock := s
+        return true
+    }
+
+    static Poll() {
+        if !this.sock
+            return SetTimer(this.ticker, 0)
+        if (A_TickCount - this.t0 > 180000)
+            return this.Finish(false, "Discord didn't answer within 3 minutes. Try again.")
+        if !this.client {
+            c := DllCall("ws2_32\accept", "Ptr", this.sock, "Ptr", 0, "Ptr", 0, "Ptr")
+            if (c = -1)
+                return
+            this.client := c, this.buf := "", this.cT := A_TickCount
+        }
+        b := Buffer(8192)
+        n := DllCall("ws2_32\recv", "Ptr", this.client, "Ptr", b, "Int", 8192, "Int", 0)
+        if (n > 0)
+            this.buf .= StrGet(b, n, "UTF-8")
+        else if (n = 0 || A_TickCount - this.cT > 3000)
+            return this.Drop()
+        if !InStr(this.buf, "`r`n`r`n")
+            return
+        path := RegExMatch(this.buf, "^GET (\S+)", &m) ? m[1] : ""
+        this.Handle(path)
+    }
+
+    static Handle(path) {
+        if (SubStr(path, 1, 9) = "/callback") {
+            this.Reply(this.Page())
+        } else if (SubStr(path, 1, 6) = "/token") {
+            q := Map()
+            for part in StrSplit(SubStr(path, InStr(path, "?") + 1), "&")
+                if (p := InStr(part, "="))
+                    q[SubStr(part, 1, p - 1)] := UrlDecode(SubStr(part, p + 1))
+            this.Reply("ok", "text/plain")
+            if q.Has("error")
+                return this.Finish(false, "Discord sign-in was cancelled.")
+            if !q.Has("access_token")
+                return
+            if (!q.Has("state") || q["state"] != this.state)
+                return this.Finish(false, "That sign-in didn't come from this window. Try again.")
+            return this.Finish(true, q["access_token"], q.Has("expires_in") ? Integer(q["expires_in"]) : 604800)
+        } else
+            this.Reply("Not found", "text/plain", "404 Not Found")
+    }
+
+    ; The page Discord sends the browser to: it passes the sign-in (which the
+    ; browser keeps after "#", out of any server's reach) to this listener.
+    static Page() {
+        return '<!doctype html><html><head><meta charset="utf-8"><title>FISCHXR</title></head>'
+            . '<body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#111214;color:#f2f3f5;font-family:Segoe UI,sans-serif">'
+            . '<div style="text-align:center"><h2 id="t">Signing you in...</h2><p id="s" style="color:#949ba4"></p></div><script>'
+            . 'var h=location.hash.substring(1);history.replaceState(null,"","/callback");'
+            . 'fetch("/token?"+h).then(function(){var e=new URLSearchParams(h).get("error");'
+            . 'document.getElementById("t").textContent=e?"Sign-in cancelled":"Signed in";'
+            . 'document.getElementById("s").textContent=e?"You can close this tab and try again from FISCHXR.":"You can close this tab and go back to FISCHXR.";});'
+            . '</script></body></html>'
+    }
+
+    static Reply(body, type := "text/html; charset=utf-8", code := "200 OK") {
+        n := StrPut(body, "UTF-8") - 1, bb := Buffer(n + 1), StrPut(body, bb, "UTF-8")
+        head := "HTTP/1.1 " code "`r`nContent-Type: " type "`r`nContent-Length: " n "`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n"
+        hn := StrPut(head, "UTF-8") - 1, hb := Buffer(hn + 1), StrPut(head, hb, "UTF-8")
+        DllCall("ws2_32\send", "Ptr", this.client, "Ptr", hb, "Int", hn, "Int", 0)
+        DllCall("ws2_32\send", "Ptr", this.client, "Ptr", bb, "Int", n, "Int", 0)
+        this.Drop()
+    }
+
+    static Drop() {
+        if this.client {
+            DllCall("ws2_32\shutdown", "Ptr", this.client, "Int", 1)
+            DllCall("ws2_32\closesocket", "Ptr", this.client)
+        }
+        this.client := 0, this.buf := ""
+    }
+
+    static Stop() {
+        if this.ticker
+            SetTimer(this.ticker, 0)
+        this.Drop()
+        if this.sock
+            DllCall("ws2_32\closesocket", "Ptr", this.sock)
+        this.sock := 0
+    }
+
+    static Finish(ok, a := "", b := 0) {
+        this.Stop()
+        f := this.whenDone, this.whenDone := 0
+        if f
+            f(ok, a, b)
+    }
+}
+
+;------------------------------------------------------------------------------
+; The sign-in window: Log in with Discord, or continue as a guest.
+;------------------------------------------------------------------------------
+class Login {
+    static g := 0, btn := 0, guest := 0, status := 0, busy := false
+
+    static Show() {
+        if (this.g || !IsObject(MainGui))
+            return
+        W := 360, H := 276
+        g := Gui("-Caption +ToolWindow +Owner" MainGui.Hwnd (Cfg["OnTop"] ? " +AlwaysOnTop" : ""))
+        g.BackColor := Pal.bar, g.MarginX := 0, g.MarginY := 0
+        SetFontFor(g, "norm s" FZ(16) " c" Pal.text, "display")
+        g.Add("Text", Format("x0 y{} w{} h{} Center Background{}", ZS(26), ZS(W), ZS(34), Pal.bar), "Welcome to FISCHXR")
+        SetFontFor(g, "norm s" FZ(10) " c" Pal.dim, "body")
+        g.Add("Text", Format("x{} y{} w{} h{} Center Background{}", ZS(24), ZS(64), ZS(W - 48), ZS(22), Pal.bar), "Sign in with Discord to use every feature.")
+        SetFontFor(g, "w600 s" FZ(11) " cFFFFFF", "body")
+        this.btn := g.Add("Text", Format("x{} y{} w{} h{} Center 0x200 Background5865F2", ZS(40), ZS(104), ZS(W - 80), ZS(44)), "Log in with Discord")
+        Clickables[this.btn.Hwnd] := {kind: "btn", fn: (*) => Login.Start(), obj: this.btn, bg: "5865F2", hv: "4752C4"}
+        SetFontFor(g, "norm s" FZ(9) " c" Pal.dim, "body")
+        this.status := g.Add("Text", Format("x{} y{} w{} h{} Center Background{}", ZS(20), ZS(156), ZS(W - 40), ZS(34), Pal.bar), "")
+        SetFontFor(g, "underline s" FZ(9) " c" Pal.dim, "body")
+        this.guest := g.Add("Text", Format("x{} y{} w{} h{} Center 0x200 Background{}", ZS(W // 2 - 80), ZS(196), ZS(160), ZS(22), Pal.bar), "Continue as guest")
+        Clickables[this.guest.Hwnd] := {kind: "btn", fn: (*) => Login.AsGuest(), obj: this.guest, bg: Pal.bar, hv: Pal.fieldHi}
+        SetFontFor(g, "norm s" FZ(8) " c" Pal.dim, "body")
+        g.Add("Text", Format("x{} y{} w{} h{} Center Background{}", ZS(24), ZS(226), ZS(W - 48), ZS(40), Pal.bar)
+            , "Guests can fish. Discord alerts, auto-reconnect, the aquarium, totems and Sovereign need a Discord sign-in.")
+        g.OnEvent("Escape", (*) => Login.AsGuest())
+        g.Show(Format("Hide w{} h{}", ZS(W), ZS(H)))
+        WinGetPos(&mx, &my, &mw, &mh, MainGui.Hwnd), WinGetPos(, , &dw, &dh, g.Hwnd)
+        fade := !Cfg["ReduceMotion"]
+        if fade
+            WinSetTransparent(0, g.Hwnd)
+        g.Show(Format("x{} y{}", mx + (mw - dw) // 2, my + (mh - dh) // 3))
+        StyleWindow(g.Hwnd)
+        if fade
+            FadeWindow(g.Hwnd, 200)
+        this.g := g, this.busy := false
+    }
+
+    static Start() {
+        if this.busy
+            return
+        this.busy := true
+        this.btn.Text := "Waiting for Discord..."
+        this.status.Text := "Approve FISCHXR in your browser, then come back here."
+        DiscordAuth.Begin(ObjBindMethod(this, "Done"))
+    }
+
+    static Done(ok, a := "", b := 0) {
+        this.busy := false
+        if !this.g
+            return
+        if !ok {
+            this.btn.Text := "Log in with Discord", this.status.Text := a
+            return
+        }
+        this.status.Text := "Checking your Discord account..."
+        me := DiscordMe(a)
+        if !IsObject(me) {
+            this.btn.Text := "Log in with Discord", this.status.Text := "Couldn't confirm your Discord account. Try again."
+            return
+        }
+        SignedIn(me, a, UnixNow() + b, true)
+        this.Close()
+    }
+
+    static AsGuest() {
+        DiscordAuth.Stop()
+        AuthState.mode := "guest"
+        LogEvent("Using FISCHXR as a guest")
+        ApplyAuth()
+        this.Close()
+    }
+
+    static Close() {
+        ; (the reference goes first: destroying the window sends it messages
+        ; that would otherwise find a window half gone)
+        g := this.g, this.g := 0
+        for c in [this.btn, this.guest]
+            if IsObject(c)
+                try Clickables.Delete(c.Hwnd)          ; (its buttons go with it)
+        if g
+            try g.Destroy()
+        this.busy := false, this.btn := 0, this.guest := 0
+        SetTimer(WhatsNewCheck, -600)
+    }
+}
+
+;------------------------------------------------------------------------------
+; What a guest sees on a signed-in-only page.
+;------------------------------------------------------------------------------
+class LockPanel {
+    static ctls := [], title := 0
+
+    static Build() {
+        this.ctls := []
+        ic := AddT(0, PAD, 104, 48, 48, HasIconFont ? Chr(0xE72E) : "", HasIconFont ? "icon" : "body", 26, Pal.dim, Pal.content, "0x200")
+        this.title := AddT(0, PAD, 160, LEFT_W, 30, "", "display", 14, Pal.text, Pal.content, "0x200")
+        body := AddT(0, PAD, 194, LEFT_W, 44, "Discord alerts, auto-reconnect, the aquarium, totems and Sovereign are for signed-in users. Sign in with Discord to use them.", "body", 10, Pal.dim, Pal.content)
+        b := AddT(0, PAD, 250, 210, 36, "Log in with Discord", "body", 10, "FFFFFF", "5865F2", "Center 0x200")
+        Clickables[b.Hwnd] := {kind: "btn", fn: (*) => Login.Show(), obj: b, bg: "5865F2", hv: "4752C4"}
+        this.ctls := [ic, this.title, body, b]
+        for c in this.ctls
+            c.Visible := false
+    }
+
+    static Show(tab) {
+        for c in this.ctls
+            c.Visible := (tab != "")
+        if (tab != "")
+            this.title.Text := "Sign in to use " tab
+    }
+}
+
+;------------------------------------------------------------------------------
+; Who's signed in, shown in the opened sidebar under the name.
+;------------------------------------------------------------------------------
+PaintAccount() {
+    if !Flyout.acct
+        return
+    try Flyout.acct.Text := IsGuest() ? "Guest · Log in" : AuthState.name " · Log out"
+}
+AccountClick() {
+    Flyout.Close()
+    if IsGuest()
+        Login.Show()
+    else
+        Dialog.Show("Discord account", "Signed in as " AuthState.name ".", "Log out", (*) => SignOut(), "Cancel")
 }
 
 

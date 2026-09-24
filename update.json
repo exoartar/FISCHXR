@@ -1,6 +1,6 @@
 {
-  "version": "4.4.8",
+  "version": "4.8.0",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "2548544f14469c005bea0dafdd6f53d77fc7cc99805a4c94930c519e66b2588f",
-  "notes": "Pinion's Aria without a skin now works. The bar is followed as it widens with caught notes. The reel's opening splash is no longer taken for notes."
+  "sha256": "d4ef7452ad0bc0d477309e9f149a2e86f029de4e4ffd39d4b01fbd46110c2832",
+  "notes": "Sign in with Discord (or continue as a guest). Signing in opens the FISCHXR Discord server; guests can fish, with alerts, auto-reconnect, aquarium, totems and Sovereign off."
 }
