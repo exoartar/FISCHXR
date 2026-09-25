@@ -1,6 +1,6 @@
 {
-  "version": "4.9.6",
+  "version": "5.0.0",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "ee87dd8be49487fa6666ad4cfc267d778eb376815814feec9675971f8f510b1d",
-  "notes": "Splitbranch Twig catches are way more reliable: FISCHXR now gives its reel the click it waits for after you pick a fish."
+  "sha256": "6ad2c16d0830f80220eda57709cc338b89b33de0def782a5db45f81f848e1794",
+  "notes": "Introducing FISCHXR Plus for everyone boosting the FISCHXR Discord server: a glowing border, Plus themes, your own accent colour and fishing extras."
 }
