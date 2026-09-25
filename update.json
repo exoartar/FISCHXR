@@ -1,0 +1,7 @@
+{
+  "version": "5.1.6",
+  "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
+  "sha256": "82f4f83f2d1c02a923dbbc17c3cc1a246dd4f25f6f3b3f0f2561821213066c38",
+  "notes": "Versions of FISCHXR can now be locked to a Discord role by the FISCHXR team.",
+  "api": "https://fischxr-api.exoartar.workers.dev/"
+}
