@@ -1,7 +1,0 @@
-{
-  "version": "5.1.1",
-  "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "3d3bd3312f408526ad6fce464ba15455cb222fc7859a912bac2e285da3bd5e52",
-  "notes": "Plus: a running light races around the glowing border (switch it off on the Plus tab).",
-  "api": "https://fischxr-api.exoartar.workers.dev/"
-}
