@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.9.1"
+APP_VER := "4.9.2"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -8471,6 +8471,9 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+4.9.2
+- The "Sign in to use" panel on locked pages sits on the page instead of under the sidebar.
+
 4.9.1
 - The sign-in screen's buttons work (the background was catching every click).
 - Totems are open to guests.
@@ -9483,10 +9486,10 @@ class LockPanel {
 
     static Build() {
         this.ctls := []
-        ic := AddT(0, PAD, 104, 48, 48, HasIconFont ? Chr(0xE72E) : "", HasIconFont ? "icon" : "body", 26, Pal.dim, Pal.content, "0x200")
-        this.title := AddT(0, PAD, 160, LEFT_W, 30, "", "display", 14, Pal.text, Pal.content, "0x200")
-        body := AddT(0, PAD, 194, LEFT_W, 44, "Discord alerts, auto-reconnect, the aquarium and Sovereign are for signed-in users. Sign in with Discord to use them.", "body", 10, Pal.dim, Pal.content)
-        b := AddT(0, PAD, 250, 210, 36, "Log in with Discord", "body", 10, "FFFFFF", "5865F2", "Center 0x200")
+        ic := AddT(0, PAGE_X, 104, 48, 48, HasIconFont ? Chr(0xE72E) : "", HasIconFont ? "icon" : "body", 26, Pal.dim, Pal.content, "0x200")
+        this.title := AddT(0, PAGE_X, 160, LEFT_W, 30, "", "display", 14, Pal.text, Pal.content, "0x200")
+        body := AddT(0, PAGE_X, 194, LEFT_W, 44, "Discord alerts, auto-reconnect, the aquarium and Sovereign are for signed-in users. Sign in with Discord to use them.", "body", 10, Pal.dim, Pal.content)
+        b := AddT(0, PAGE_X, 250, 210, 36, "Log in with Discord", "body", 10, "FFFFFF", "5865F2", "Center 0x200")
         Clickables[b.Hwnd] := {kind: "btn", fn: (*) => Login.Show(), obj: b, bg: "5865F2", hv: "4752C4"}
         this.ctls := [ic, this.title, body, b]
         for c in this.ctls

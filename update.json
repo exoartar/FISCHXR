@@ -1,6 +1,6 @@
 {
-  "version": "4.9.1",
+  "version": "4.9.2",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "4c978da16bb1e120d248bd713dc66016c94d2e9a4fe9fe3a50a9e51f1977920a",
-  "notes": "Sign-in buttons work, totems are open to guests, and rods can be typed by name on the Rods page (small mistakes fixed, hotbar readings too)."
+  "sha256": "caa170bad083b70525be8dfddd1ac2a6273241afbc0b02a437f4e29fc9b4e95d",
+  "notes": "The sign-in panel on locked pages sits on the page instead of under the sidebar."
 }
