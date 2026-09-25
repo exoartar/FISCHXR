@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.9.2"
+APP_VER := "4.9.6"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -217,7 +217,7 @@ OutReel := 0, OutShake := 0, OutAq := 0, CurTab := "Home"
 CurRod := 0, SelRod := 0, RodProfiles := [], ProfSeq := 0, VisionLog := []
 LiveBand := 0, LiveGeo := 0, LiveD := 0, LiveP := 0, LiveEp := -1, LiveT := 0, LiveHbm := 0, LiveRate := 0
 UpdAllowLocal := false, UpdLast := ""
-ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true
+ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999
 ; Discord sign-in. The app's Client ID is public by design (no secret is used).
 DISCORD_CLIENT_ID := "1552771662787903568", DISCORD_PORT := 53682, DISCORD_INVITE := "https://discord.gg/ERkjTTYG4B"
 GUEST_TABS := ["Aquarium", "Sovereign", "Alerts", "Reconnect"]      ; (totems are open to guests)
@@ -530,7 +530,7 @@ StartMacro() {
         SetTimer(SummaryTick, Cfg["HookSummary"] * 60000)
     UpdateStartControls()
     HudEnter()
-    SetTimer(ReadRodName, -400)            ; which rod is in hand
+    ; (the rod is read from the hotbar before the first cast: MacroLoop)
     LogEvent("Started fishing")
     Alert("start", "Fishing started" (IsObject(CurRod) ? " with " CurRod.name : "") ".")
     Cue("start")
@@ -569,9 +569,23 @@ MacroLoop() {
     global LoopActive, CurRod, SovReels, LiveBand, LiveGeo
     LoopActive := true
     UsePhysicalPixels()
-    misses := 0, b := 0, geoKey := ""
+    misses := 0, b := 0, geoKey := "", lastProgress := A_TickCount, badReels := 0
     try {
         while Running {
+            ; Watchdog: nothing cast, reeled or done for two minutes means the
+            ; loop has gone wrong somewhere: let go, start fresh, re-equip.
+            if (A_TickCount - lastProgress > 120000) {
+                LogEvent("Nothing has happened for 2 minutes: starting fresh")
+                ReleaseMouse()
+                FreshStart("the loop stalled")
+                b := 0, geoKey := "", lastProgress := A_TickCount, misses := 0
+                if (RegExMatch(Cfg["RodKey"], "^[0-9]$") && !ReequipRod()) {
+                    if ReconnectDue()
+                        continue
+                    break
+                }
+                continue
+            }
             if ReconnectDue() {
                 if !Reconnect()
                     break
@@ -596,9 +610,15 @@ MacroLoop() {
                 Sleep 300
                 continue
             }
+            ; Which rod is in hand, read from the hotbar before fishing with it:
+            ; its name decides which reel look is expected.
+            if (CurRodName = "" && Cfg["RodManual"] = "" && A_TickCount - RodReadAt > 20000)
+                ReadRodFirst()
             ; Jobs between catches: aquarium, totems, Sovereign recharge.
-            if RunDueJobs()
+            if RunDueJobs() {
+                lastProgress := A_TickCount
                 continue
+            }
             a := AreaRect("Reel", cr), geo := VisionGeo(a)
             k := geo.x "," geo.y "," geo.w "," geo.h
             if (k != geoKey)
@@ -620,7 +640,7 @@ MacroLoop() {
                     continue
                 break
             }
-            Stats.casts++
+            Stats.casts++, lastProgress := A_TickCount
             UpdateStats()
             if !Nap(Cfg["BobberWait"])
                 break
@@ -645,13 +665,21 @@ MacroLoop() {
             misses := 0
             CurRod := found.prof
             SetPhase("reel", "Reeling", "Rod: " found.prof.name)
-            MouseToCenter()
+            chose := A_TickCount - ChoseFishAt < 15000
+            ReelMouseSpot(chose)
             res := Reel(b, geo, base, found)
             ; A reel that ended early (lost tracking) while its UI is still up
             ; is resumed rather than cast over.
             resumes := 0
-            while (Running && !res.phantom && resumes < 3 && ReelStillUp(b, geo, found.prof)) {
+            ; (just after a fish was chosen, a bar that didn't answer is given
+            ; one more go with the mouse moved clear, rather than cast over)
+            ; (right after a choice, or with a rod whose reel waits for a
+            ; click, a bar that didn't answer is given more goes, with the
+            ; mouse clear, rather than cast over)
+            while (Running && (!res.phantom || chose || InStr(CurRodName, "Splitbranch")) && resumes < 3 && ReelStillUp(b, geo, found.prof)) {
                 resumes++
+                if res.phantom
+                    ReelMouseSpot(true)
                 LogVision("Reel still up after tracking dropped; resuming")
                 res := Reel(b, geo, base, {prof: found.prof, d: 0})
             }
@@ -659,9 +687,20 @@ MacroLoop() {
                 break
             if ReconnectDue()          ; the game dropped mid-reel: don't count it
                 continue
-            Stats.reels++
+            Stats.reels++, lastProgress := A_TickCount
             SovReels++
             UpdateStats()
+            ; A reel that went badly (the bar didn't answer, it ended at once, or
+            ; the fish was hardly ever on the bar): two in a row and whatever the
+            ; session has learned is dropped and relearned.
+            if (res.phantom || res.dur < 1500 || (res.frames > 20 && res.inside < 0.35))
+                badReels++
+            else
+                badReels := 0
+            if (badReels >= 2) {
+                FreshStart("two reels in a row went badly", res.HasOwnProp("memKey") ? res.memKey : "")
+                b := 0, geoKey := "", badReels := 0
+            }
             SetGauge(0.36, 0.64, 0.5, false)
             if res.phantom
                 LogEvent("Reel ended early: the bar stopped answering the mouse")
@@ -682,19 +721,44 @@ MacroLoop() {
 
 ; Runs whichever between-catch job is due. True when one ran.
 RunDueJobs() {
-    if (Cfg["AqAuto"] && A_TickCount >= AqNext) {
-        RunAquarium(false)
-        return true
-    }
-    if TotemDue() {
-        RunTotems()
-        return true
-    }
-    if SovereignDue() {
-        RunSovereign()
+    static lastRun := Map(), skipUntil := Map()
+    ; (a job a guest can't run is never due for a guest)
+    jobs := [["aquarium", () => Cfg["AqAuto"] && A_TickCount >= AqNext && !IsGuest(), RunAquarium.Bind(false)]
+        , ["totems", () => TotemDue(), () => RunTotems()]
+        , ["Sovereign", () => SovereignDue() && !IsGuest(), () => RunSovereign()]]
+    for j in jobs {
+        name := j[1], due := j[2], run := j[3]
+        if (skipUntil.Has(name) && A_TickCount < skipUntil[name])
+            continue
+        if !due()
+            continue
+        ; still due right after it ran: it isn't getting done, so fishing
+        ; goes on and it's tried again later (rather than looping on it)
+        if (lastRun.Has(name) && A_TickCount - lastRun[name] < 20000) {
+            skipUntil[name] := A_TickCount + 600000
+            LogEvent("The " name " job keeps coming due without finishing: trying it again in 10 minutes")
+            continue
+        }
+        lastRun[name] := A_TickCount
+        run()
         return true
     }
     return false
+}
+
+; Drops what the session has learned (the reel looks, this rod's learned bar
+; physics, the rod's name unless typed) so it's all found again from scratch.
+FreshStart(why, memKey := "") {
+    global SessionLooks, CurRodName, CurRodLib, RodReadAt
+    try LogEvent("Starting fresh: " why)
+    SessionLooks := Map()
+    if (memKey != "" && RodMem.Has(memKey)) {
+        RodMem.Delete(memKey)
+        try IniDelete(IniPath, "Rods", memKey)
+    }
+    if (Cfg["RodManual"] = "")
+        CurRodName := "", CurRodLib := "", RodReadAt := 0
+    try RodsChanged()
 }
 
 Cast() {
@@ -730,7 +794,9 @@ ShakeUntilReel(b, geo, base) {
         Send "{" Cfg["NavKey"] "}"
         navOn := true
     }
-    hits := 0, lastShake := 0, lastNote := 0, lastLearn := 0, why := "", quiet := QuietRod()
+    global CurRodLib
+    hits := 0, lastShake := 0, lastNote := 0, lastLearn := 0, why := "", quiet := QuietRod(), chT := 0
+    choiceAt := 0, picks := 0, lastChoiceLook := 0
     ; the rod's name decides its reel style; while it's unknown, read it again
     if (CurRodName = "" && A_TickCount - RodReadAt > 20000)
         SetTimer(ReadRodName, -10)
@@ -742,6 +808,21 @@ ShakeUntilReel(b, geo, base) {
         changed := RowDiff(b, base) > 0.25
         if changed {
             r := MatchPrecoded(b, geo)
+            ; the reel is clearly up but the rod's style doesn't fit it (a
+            ; misread rod name): after 1.5 s every style is tried, and the one
+            ; that fits is used from then on
+            if !r {
+                if !chT
+                    chT := A_TickCount
+                else if (CurRodLib != "" && A_TickCount - chT > 1500 && (r := MatchPrecoded(b, geo, true))) {
+                    try LogEvent("This reel is the " RodById(r.prof.lib).name " style, not the " RodById(CurRodLib).name " style: using it")
+                    CurRodLib := r.prof.lib
+                    try RodsChanged()
+                }
+            }
+        } else
+            chT := 0
+        if changed {
             if (!r && A_TickCount - lastLearn > 4000) {
                 lastLearn := A_TickCount
                 LogVision("No built-in reel style fits this reel" (CurRodName != "" ? " (" CurRodName ")" : "")
@@ -749,6 +830,27 @@ ShakeUntilReel(b, geo, base) {
                 SaveUnmatched(b)
             }
         }
+        now := A_TickCount
+        ; A rod that offers two fish (Splitbranch Twig): while its timer bar
+        ; shows, the reel under it is frozen until a fish is picked, so it isn't
+        ; taken yet and nothing is shaken. The fish float up beside the player
+        ; first; after ~1 s the left one is clicked, then (if the choice is
+        ; still up) the right one, then just above the middle. The reel is
+        ; taken once the bar is gone (picked, or the game's 5 s ran out).
+        if (InStr(CurRodName, "Splitbranch") && now - lastChoiceLook >= 120) {
+            lastChoiceLook := now
+            if ChoiceShowing() {
+                if !choiceAt {
+                    choiceAt := now, picks := 0, deadline := Max(deadline, now + 9000)
+                    LogVision("Choose one: two fish offered")
+                }
+                if (picks < 3 && now - choiceAt >= [1100, 2400, 3600][picks + 1])
+                    PickFish(++picks)
+            } else if choiceAt
+                choiceAt := 0, hits := 0
+        }
+        if choiceAt
+            r := 0
         if r {
             if (++hits >= 2) {
                 if navOn
@@ -758,16 +860,12 @@ ShakeUntilReel(b, geo, base) {
         } else {
             hits := 0
         }
-        now := A_TickCount
         if (now >= deadline) {
             if navOn
                 Send "{" Cfg["NavKey"] "}"
             return "timeout"
         }
-        ; No shaking once a reel is showing. For rods that lose the fish to
-        ; fast inputs (Requiem), none as soon as the reel area changes, even
-        ; before the reel is recognized.
-        if (now - lastShake >= Cfg["ShakeInterval"] && !r && !(quiet && changed)) {
+        if (now - lastShake >= Cfg["ShakeInterval"] && !r && !(quiet && changed) && !choiceAt) {
             lastShake := now
             if nav
                 Send "{Enter}"
@@ -884,6 +982,15 @@ Reel(b, geo, base, r) {
     lastBl := -2, lastBr := -2, lastFx := -2, tFrame := 0, vmaxSeen := 0
     widths := [], bw := 0, memKey := "", segT := [], segX := []
     t0 := A_TickCount, lastUI := t0, lastDash := 0, frame := 0, ep := -1, good := 0
+    ; Splitbranch Twig's reel waits for a click ("Click & Hold Anywhere!")
+    ; after a fish is chosen: it gets one at once, and a bar that doesn't move
+    ; in its first 3 s isn't taken for scenery.
+    frozenOK := InStr(CurRodName, "Splitbranch") ? 3000 : 0
+    if frozenOK {
+        Click("Down")
+        Sleep 120
+        Click("Up")
+    }
     lostSince := 0, lastRelearn := 0, phantom := false, why := "", segOK := [], still := [], gone := 0, stale := 0, sawEdges := false
     trail := [], lostHbm := 0, lostAt := -1, wasPresent := false, endWhy := "", snaps := Cfg["ReelSnaps"]
     d := (r.HasOwnProp("d") && IsObject(r.d)) ? r.d : 0
@@ -1037,7 +1144,7 @@ Reel(b, geo, base, r) {
                     ; confirming the reel: the outline exists only on the real
                     ; reel UI, and input lag or a rod's odd physics can make a
                     ; real bar look like it isn't answering.
-                    if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1 && p.kind = "")
+                    if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1 && p.kind = "" && A_TickCount - t0 >= frozenOK)
                         phantom := true
                     if (physics && (!autoLag || lag.n >= 40))
                         FitSegment(segT, segX, holding, est, w)
@@ -1054,7 +1161,7 @@ Reel(b, geo, base, r) {
                 lo := 1e9, hi := -1e9
                 for s in still
                     lo := Min(lo, s[2]), hi := Max(hi, s[2])
-                if (hi - lo < 3 && ep != 1)
+                if (hi - lo < 3 && ep != 1 && A_TickCount - t0 >= frozenOK)
                     phantom := true
             }
             if phantom
@@ -1150,7 +1257,7 @@ Reel(b, geo, base, r) {
         ; Roblox reads input once per frame, so never flip faster than that.
         ; (Requiem snaps the line if inputs come too fast: it has its own minimum)
         if (hold != holding && tq - tSwitch >= (p.minSwitch ? p.minSwitch : 16)) {
-            if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1 && p.kind = "") {
+            if (!SegmentAnswers(segT, segX, holding, est, segOK) && ep != 1 && p.kind = "" && A_TickCount - t0 >= frozenOK) {
                 phantom := true
                 break
             }
@@ -1202,7 +1309,7 @@ Reel(b, geo, base, r) {
         if lostHbm
             DllCall("DeleteObject", "Ptr", lostHbm)
     }
-    return {dur: A_TickCount - t0, frames: nBoth, inside: nBoth ? nIn / nBoth : 0, phantom: phantom, good: good
+    return {dur: A_TickCount - t0, frames: nBoth, inside: nBoth ? nIn / nBoth : 0, phantom: phantom, good: good, memKey: memKey
         , centered: nBoth ? nCtr / nBoth : 0, err: nBoth ? errSum / nBoth : 0, rod: p
         , lag: autoLag ? lag.value : L, lagN: lag.n, loops: frame
         , centeredTxt: nBoth ? Round(100 * nCtr / nBoth) "% of the time" : "n/a"}
@@ -1481,6 +1588,79 @@ QuietRod() {
         if (lib.id = CurRodLib && lib.HasOwnProp("minSwitch"))
             return lib.minSwitch
     return 0
+}
+
+
+; Reads the rod in hand from the hotbar and waits for the answer (up to 12 s),
+; so fishing starts knowing which reel to expect. If it can't be read, fishing
+; goes on and every reel look is tried.
+ReadRodFirst() {
+    global RodReadAt
+    SetPhase("cast", "Reading your rod", "Reading the rod's name from its hotbar slot.")
+    RodReadAt := A_TickCount
+    ReadRodName(false)
+    t0 := A_TickCount
+    while (Running && RodReadBusy && A_TickCount - t0 < 12000)
+        Sleep 100
+    RodReadAt := A_TickCount
+}
+
+; Splitbranch Twig's "Choose one!": a lime timer bar low in the middle of the
+; screen (measured on real ones: 89-91% down, it slides a little; 42-58%
+; across; lime A2D229 turning yellow, orange, then red as it runs out).
+; Three rows are looked at.
+ChoiceShowing() {
+    static g := 0, gw := 0
+    cr := ClientRect(RobloxHwnd)
+    if !cr
+        return false
+    x := cr.x + Round(cr.w * 0.40), w := Round(cr.w * 0.20)
+    if (!g || gw != w)
+        g := BandGrab(w, 1), gw := w
+    for fy in [0.892, 0.899, 0.906] {
+        g.Grab(x, cr.y + Round(cr.h * fy))
+        n := 0, i := 0
+        while (i < w) {
+            c := NumGet(g.bits, i * 4, "UInt"), r := (c >> 16) & 255, gg := (c >> 8) & 255, bb := c & 255
+            n += (Max(r, gg) >= 150 && bb <= 90 && Max(r, gg) - bb >= 90)   ; lime, then yellow, orange, red as it runs out
+            i += 2
+        }
+        if (2 * n >= w * 0.08)
+            return true
+    }
+    return false
+}
+
+; Clicks one of the two offered fish, where they settle beside the player
+; (measured: just left and right of the middle of the screen, level with it).
+; which: 1 the left fish, 2 the right fish, 3 just above the middle. The mouse
+; rests on the spot a moment first, so the game sees it there.
+PickFish(which) {
+    global ChoseFishAt
+    ChoseFishAt := A_TickCount
+    cr := ClientRect(RobloxHwnd)
+    if !cr
+        return
+    dx := [-0.068, 0.079, 0][which], dy := [0.505, 0.505, 0.47][which]
+    px := cr.x + Round(cr.w / 2 + cr.h * dx), py := cr.y + Round(cr.h * dy)
+    MouseMove(px, py, 0)
+    Sleep 150
+    Click()
+    try LogEvent("Two fish to choose from: " ["picked the left one", "picked the right one", "clicked just above the middle"][which])
+    try LogVision(Format("Choose one: click {} at {},{}", which, px, py))
+}
+
+; Where the mouse sits while reeling: the middle of the screen, or, just after
+; a fish was chosen (Splitbranch Twig), open ground below the player: the
+; chosen fish floats at the middle and would take the clicks meant for the reel.
+ReelMouseSpot(clear) {
+    if !clear
+        return MouseToCenter()
+    cr := ClientRect(RobloxHwnd)
+    if !cr
+        return MouseToCenter()
+    MouseMove(cr.x + cr.w // 2, cr.y + Round(cr.h * 0.72), 0)
+    try LogVision("Reeling with the mouse clear of the chosen fish")
 }
 
 
@@ -3307,13 +3487,17 @@ class Hud {
             return
         }
         hw := this.g.Hwnd
+        Anim.Finish("hud")
         WinSetTransparent(0, hw)
         this.g.Show(Format("x{} y{} NoActivate", x + 60, y))    ; glides in from the edge
-        glide(e) {
+        ; The glide runs to its end right here: fishing starts next and can hold
+        ; up the animation timer, which left the panel see-through.
+        for e in [0.35, 0.65, 0.88, 1.0] {
             try WinMove(x + Round(60 * (1 - e)), y, , , "ahk_id " hw)
             try WinSetTransparent(Round(255 * e), hw)
+            DllCall("Sleep", "UInt", 16)
         }
-        Anim.Run(260, glide, "hud", OpaqueAgain.Bind(hw))
+        OpaqueAgain(hw)
     }
     static Hide() {
         if this.g
@@ -5961,9 +6145,9 @@ MatchLibrary(b) {
 ; if that isn't known, every built-in style is tried and the best fit wins.
 ; The chosen style is kept for this session only (never saved), so the next
 ; reel is recognized at once.
-MatchPrecoded(b, geo) {
+MatchPrecoded(b, geo, all := false) {
     ids := []
-    if (CurRodLib != "") {
+    if (CurRodLib != "" && !all) {
         ids.Push(CurRodLib)
         for l in RodLib
             if (l.HasOwnProp("alias") && l.alias = CurRodLib)
@@ -6370,17 +6554,47 @@ BoxScan(b, geo, predFish := -1, p := 0, now := -1) {
         off := Max(4, Round((bot - top) * 0.12)), yu := top - off, yd := bot + off
     else
         off := Max(3, Round(geo.ih * 0.3)), yu := geo.m - off, yd := geo.m + geo.ih + off
-    up := BoxRuns(b, Clamp(yu, 0, b.h - 1), w), dn := BoxRuns(b, Clamp(yd, 0, b.h - 1), w)
+    ; First on rows set from the reel area itself (a third of the track's
+    ; height above it and a little more below, clear of the bar's outline),
+    ; looking for a thin line clearly darker than the scene there: that holds
+    ; even when the bar's sides were misread (at night), which put the rows
+    ; from the box in the wrong place. The rows from the box are the fallback.
     fx := -1, fBest := 1e9, tol := Max(3, Round(w * 0.004))
-    for u in up
-        for v in dn {
-            if (Abs(u[1] - v[1]) > tol || Abs(u[2] - v[2]) > Max(4, 0.6 * Max(u[2], v[2])))
-                continue
-            cen := (u[1] + v[1]) / 2
-            sc := Abs(u[2] - v[2]) + (predFish >= 0 ? Abs(cen - predFish) / Max(1, w * 0.05) : 0)
+    ; Best of all: a thin line darker than what's on both sides of it (the
+    ; bar's inside, or brighter scenery) on at least two of three rows across
+    ; the reel, at the same place. It holds day and night; a bar side isn't
+    ; one (the dark track is on its outer side).
+    votes := []
+    for fy in [-0.3, 0.3, 0.7]
+        for x0 in NoiseValleys(b, Clamp(geo.m + Round(geo.ih * fy), 0, b.h - 1), w) {
+            hit := false
+            for vv in votes
+                if (Abs(vv[1] / vv[2] - x0) <= tol)
+                    vv[1] += x0, vv[2] += 1, hit := true
+            if !hit
+                votes.Push([x0, 1])
+        }
+    for vv in votes
+        if (vv[2] >= 2) {
+            cen := vv[1] / vv[2], sc := -vv[2] * 10 + (predFish >= 0 ? Abs(cen - predFish) / Max(1, w * 0.05) : 0)
             if (sc < fBest)
                 fBest := sc, fx := cen
         }
+    for tryRows in (fx >= 0 ? [] : [[geo.m - Round(geo.ih * 0.35), geo.m + geo.ih + Round(geo.ih * 0.42), true], [yu, yd, false]]) {
+        ya := Clamp(tryRows[1], 0, b.h - 1), yb := Clamp(tryRows[2], 0, b.h - 1)
+        up := tryRows[3] ? NoiseRuns(b, ya, w) : BoxRuns(b, ya, w), dn := tryRows[3] ? NoiseRuns(b, yb, w) : BoxRuns(b, yb, w)
+        for u in up
+            for v in dn {
+                if (Abs(u[1] - v[1]) > tol || Abs(u[2] - v[2]) > Max(4, 0.6 * Max(u[2], v[2])))
+                    continue
+                cen := (u[1] + v[1]) / 2
+                sc := Abs(u[2] - v[2]) + (predFish >= 0 ? Abs(cen - predFish) / Max(1, w * 0.05) : 0)
+                if (sc < fBest)
+                    fBest := sc, fx := cen
+            }
+        if (fx >= 0)
+            break
+    }
     none.fish := fx >= 0, none.fx := fx, none.fishCol := fx >= 0
     if (bl < 0)
         return none
@@ -7453,6 +7667,55 @@ SunPx(c) {
 }
 SunScan(b, geo, predFish := -1, p := 0) => TealScan(b, geo, predFish, p, SunPx, 76, "brown")
 
+; Thin runs along row y clearly darker than the row's own scene (at most 90,
+; and 35 below its typical brightness): [[centre, width], ...]. For the
+; Noiseform fish, day or night.
+NoiseRuns(b, y, w) {
+    o := y * b.stride, v := "", x := 0
+    while (x < w) {
+        v .= Format("{:03}", Lum(NumGet(b.bits, o + x * 4, "UInt"))) "`n"
+        x += 8
+    }
+    a := StrSplit(Sort(RTrim(v, "`n")), "`n"), thr := Min(90, Integer(a[(a.Length + 1) // 2]) - 35)
+    runs := [], st := -1, x := 0, lo := Max(2, Round(w * 0.002)), hi := Max(6, Round(w * 0.012))
+    while (x <= w) {
+        on := x < w && Lum(NumGet(b.bits, o + x * 4, "UInt")) < thr
+        if (on && st < 0)
+            st := x
+        else if (!on && st >= 0) {
+            if (x - st >= lo && x - st <= hi)
+                runs.Push([st + (x - st - 1) / 2, x - st])
+            st := -1
+        }
+        x++
+    }
+    return runs
+}
+
+; Along row y, thin dark lines with brighter pixels on both sides (at least 40
+; brighter at a small distance): their centres.
+NoiseValleys(b, y, w) {
+    o := y * b.stride, L := [], x := 0
+    while (x < w) {
+        L.Push(Lum(NumGet(b.bits, o + x * 4, "UInt")))
+        x++
+    }
+    d := Max(4, Round(w * 0.006)), lo := Max(2, Round(w * 0.002)), hi := Max(6, Round(w * 0.012))
+    out := [], st := -1, x := d + 1
+    while (x <= w - d) {
+        on := x <= w - d - 1 && L[x] + 40 < L[x - d] && L[x] + 40 < L[x + d]
+        if (on && st < 0)
+            st := x
+        else if (!on && st >= 0) {
+            if (x - st >= lo && x - st <= hi)
+                out.Push(st - 1 + (x - st - 1) / 2)
+            st := -1
+        }
+        x++
+    }
+    return out
+}
+
 
 ;==============================================================================
 ; Extras: logo graphics, auto totems, Sovereign recharge, Discord alerts and
@@ -7563,8 +7826,13 @@ LogoImage(which) {
 ; The tray and title-bar icon: the fish on a black tile.
 ApplyAppIcon(hwnd := 0) {
     static small := 0, big := 0
-    if !small
-        small := GpIcon(LogoImage("icon"), 16), big := GpIcon(LogoImage("icon"), 32)
+    if !small {
+        ; the FISCHXR logo, at the sizes Windows uses for this screen
+        src := Gdip.Start() ? GpFromBase64(SignInAsset("logo")) : 0
+        if !src
+            src := LogoImage("icon")
+        small := GpIcon(src, SysGet(49)), big := GpIcon(src, SysGet(11))
+    }
     if !small
         return
     try TraySetIcon("HICON:*" big)
@@ -8471,6 +8739,25 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+4.9.6
+- Splitbranch Twig: its reel waits for a click after a fish is chosen ("Click & Hold Anywhere!"). The macro now gives it one straight away, doesn't mistake the frozen bar for scenery in the first 3 seconds, and keeps resuming the reel while it's up instead of giving up and casting over it.
+- Splitbranch Twig: the choice timer is followed all the way down (it turns yellow, orange, then red).
+
+4.9.5
+- Splitbranch Twig: the reel is no longer taken while the two fish are still on offer (its bar is frozen until one is picked). The left fish is clicked once the fish have floated up beside you, then the right one, then just above the middle, if the choice is still showing.
+- Splitbranch Twig: after a fish is chosen, the mouse reels from open ground below you instead of over the chosen fish, which took the clicks meant for the reel. A bar that doesn't answer right after a choice is given another go instead of being cast over.
+
+4.9.4
+- The rod is read from the hotbar before fishing starts (and again whenever it's forgotten), so the right reel is expected from the first cast.
+- Noiseform: the fish is found far more reliably, including at night and when it's outside the bar: it's read as a thin dark line against what's beside it, on its own, rather than from where the bar was found.
+- Splitbranch Twig: when it offers two fish ("Choose one!"), shaking stops and the left fish is picked.
+
+4.9.3
+- Fishing corrects itself. After two reels in a row go badly, what the session has learned (reel looks, the rod's learned bar movement, the rod's name) is dropped and found again. If a reel is clearly up but the rod's reel style doesn't fit it, every style is tried and the one that fits is used. If nothing is cast or reeled for two minutes, the macro lets go, starts fresh and re-equips the rod.
+- A job that can't finish no longer stops fishing: it's tried again in 10 minutes. (Guests with the aquarium or Sovereign on could get stuck without casting.)
+- The small fishing panel is no longer left see-through.
+- The taskbar and tray use the new FISCHXR logo.
+
 4.9.2
 - The "Sign in to use" panel on locked pages sits on the page instead of under the sidebar.
 
@@ -9548,7 +9835,7 @@ KnownRods() {
             . "Azure Of Lagoon|Bellona's Waraxe|Blazebringer Rod|Bloomspire|Boreal Rod|Breeze Caster|Brine-Infused Rod|"
             . "Chasm-Stalker|Cheeto Rod|Coral Rod|Crew Rod|Crowbar|Cryolash|Cusk Purger|Dave Rod|Daybreaker Rod|"
             . "Zeus's Thundermaul|Noiseform|Pinion's Aria|Requiem|Verdant Oath|Nate's Blade|Remembrance|Migu Rod|"
-            . "Olympian Godbreaker"
+            . "Olympian Godbreaker|Splitbranch Twig"
             , "|")
         for lib in RodLib                          ; (the built-in reel styles' rods too)
             if (lib.id != "standard" && !InStr(lib.name, "("))

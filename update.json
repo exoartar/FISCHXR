@@ -1,6 +1,6 @@
 {
-  "version": "4.9.2",
+  "version": "4.9.6",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "caa170bad083b70525be8dfddd1ac2a6273241afbc0b02a437f4e29fc9b4e95d",
-  "notes": "The sign-in panel on locked pages sits on the page instead of under the sidebar."
+  "sha256": "83f5e50dadf61e17cf621bcdd4efcbb15da1639a1b0c97c5b4284bac3614e421",
+  "notes": "Splitbranch Twig: the reel gets the click it waits for, its frozen start isn't mistaken for scenery, and the choice timer is followed to the end."
 }
