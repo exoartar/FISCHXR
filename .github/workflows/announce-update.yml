@@ -15,4 +15,4 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_ROLE: ${{ secrets.DISCORD_ROLE }}
-        run: python3 .github/scripts/announce.py
+        run: run: python3 .github/workflows/announce.py
