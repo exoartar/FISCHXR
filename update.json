@@ -1,6 +1,7 @@
 {
-  "version": "5.0.0",
+  "version": "5.1.0",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "6ad2c16d0830f80220eda57709cc338b89b33de0def782a5db45f81f848e1794",
-  "notes": "Introducing FISCHXR Plus for everyone boosting the FISCHXR Discord server: a glowing border, Plus themes, your own accent colour and fishing extras."
+  "sha256": "50bcd022ec367594604f7e5665fd50c7ab2d49fc7c60b7cf5dda11059ac01024",
+  "notes": "Change your macro's settings right from Discord with /settings, and check on it with /status.",
+  "api": "https://fischxr-api.exoartar.workers.dev/"
 }

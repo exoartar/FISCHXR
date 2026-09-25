@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "4.9.6"
+APP_VER := "5.1.0"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -85,9 +85,9 @@ SIDEBAR_W := 52, SIDEBAR_X := 148, NAV_H := 30, PAGE_X := SIDEBAR_W + 16   ; the
 PAD := 24, LEFT_W := 456, DASH_X := PAGE_X, COL2 := PAGE_X
 ROW_Y0 := 80, ROW_H := 34
 MIN_W := 540, MIN_H := 400
-BasicTabs := ["Home", "Fishing", "Totems", "Aquarium", "Sovereign", "Alerts", "Reconnect", "Settings"]
+BasicTabs := ["Home", "Fishing", "Totems", "Aquarium", "Sovereign", "Alerts", "Reconnect", "Plus", "Settings"]
 AdvTabs := ["Rods", "Live", "Reel", "Timing", "More"]
-TabNames := ["Home", "Fishing", "Totems", "Aquarium", "Sovereign", "Alerts", "Reconnect", "Settings", "Rods", "Live", "Reel", "Timing", "More"]
+TabNames := ["Home", "Fishing", "Totems", "Aquarium", "Sovereign", "Alerts", "Reconnect", "Plus", "Settings", "Rods", "Live", "Reel", "Timing", "More"]
 WidePages := ""
 ZoomSteps := [80, 90, 100, 110, 125, 150, 175, 200]
 ; Saved rod looks carry this number; looks with a lower one are relearned
@@ -138,10 +138,12 @@ Defaults := Map(
     "HookSummary", 60, "HookShots", 1,
     "AutoReconnect", 0, "RejoinLink", "roblox://experiences/start?placeId=16732694052", "RejoinWait", 40,
     "AuthMode", "", "AuthTok", "", "AuthExp", 0, "AuthName", "", "AuthId", "", "RodManual", "",
+    "AuthScope", "", "GuildId", "", "PlusCached", 0, "PlusAccess", "", "ApiUrl", "", "ApiSeq", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium",
+    "PlusTheme", "", "PlusAccent", "", "PlusQuickRecast", 0, "PlusRate", 1, "PlusPanelCorner", "TR",
     "RejoinMax", 4, "RejoinResume", 1, "ReelSnaps", 1,
     "MiniHud", 1, "UpdateUrl", UPDATE_URL, "AutoUpdate", 1, "LastVersion", ""
 )
-TextKeys := "|RodManual|AuthMode|AuthTok|AuthName|AuthId|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
+TextKeys := "|PlusAccess|ApiUrl|AuthScope|GuildId|PlusGlowColor|PlusGlowStyle|PlusTheme|PlusAccent|PlusPanelCorner|RodManual|AuthMode|AuthTok|AuthName|AuthId|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
 BoolKeys := ["RodReequip", "UseNavKey", "AqAuto", "ColorSafe", "ReduceMotion", "Speak", "Sounds", "ShowSplash", "ShowHome", "OnTop", "ShowAreas"
     , "TotemAuto", "TotemSundial", "SovAuto", "HookStart", "HookErrors", "HookDisconnect", "HookJobs", "HookShots", "AutoReconnect", "RejoinResume", "ReelSnaps", "MiniHud", "AutoUpdate"]
 
@@ -217,11 +219,13 @@ OutReel := 0, OutShake := 0, OutAq := 0, CurTab := "Home"
 CurRod := 0, SelRod := 0, RodProfiles := [], ProfSeq := 0, VisionLog := []
 LiveBand := 0, LiveGeo := 0, LiveD := 0, LiveP := 0, LiveEp := -1, LiveT := 0, LiveHbm := 0, LiveRate := 0
 UpdAllowLocal := false, UpdLast := ""
-ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999
+ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999, RemoteRebuild := false
 ; Discord sign-in. The app's Client ID is public by design (no secret is used).
 DISCORD_CLIENT_ID := "1552771662787903568", DISCORD_PORT := 53682, DISCORD_INVITE := "https://discord.gg/ERkjTTYG4B"
 GUEST_TABS := ["Aquarium", "Sovereign", "Alerts", "Reconnect"]      ; (totems are open to guests)
-AuthState := {mode: "", id: "", name: ""}
+AuthState := {mode: "", id: "", name: "", plus: false, plusWhy: "", access: "", blockMsg: ""}
+FISCHXR_GUILD_ID := ""        ; the FISCHXR server's ID (found from the invite when empty)
+FISCHXR_API := ""             ; the FISCHXR service (read from update.json's "api" when empty)
 ; (a test harness may set AuthTest before loading the macro)
 AuthTest := IsSet(AuthTest) ? AuthTest : {noPrompt: false, noBrowser: false, me: 0, state: "", opened: "", mode: ""}
 if AuthTest.noPrompt
@@ -466,6 +470,8 @@ RememberRod(key, aH, aR) {
 ResolveTheme() {
     global Pal
     base := Themes[Cfg["Theme"]]
+    if (IsPlus() && PlusThemeSet().Has(Cfg["PlusTheme"]))     ; a Plus theme
+        base := PlusThemeSet()[Cfg["PlusTheme"]]
     Pal := {}
     for k, v in base.OwnProps()
         Pal.%k% := v
@@ -473,6 +479,7 @@ ResolveTheme() {
         for k, v in SafeColors[base.dark ? "dark" : "light"].OwnProps()
             Pal.%k% := v
     }
+    PlusAccentOn()                                          ; a Plus custom accent
 }
 
 ; Library rods (their own reel colours), by id.
@@ -504,6 +511,7 @@ ToggleMacro() {
 }
 
 StartMacro() {
+    SetTimer(RemoteReportSoon, -1500)
     global Running, RobloxHwnd, SovReels, ReconnectWhy, LogFile
     UsePhysicalPixels()
     hwnd := FindRoblox()
@@ -539,6 +547,7 @@ StartMacro() {
 }
 
 StopMacro(msg := "") {
+    SetTimer(RemoteReportSoon, -1500)                  ; (the FISCHXR service hears it stopped)
     global Running
     was := Running
     Running := false
@@ -708,7 +717,7 @@ MacroLoop() {
                 LogEvent(Format("Reel done in {:.1f} s, fish centered {}", res.dur / 1000, res.centeredTxt))
             Cue("catch")
             SetPhase("cast", "Reel finished", "Casting again shortly.")
-            if !Nap(Cfg["CatchDelay"])
+            if !Nap(RecastGap())
                 break
         }
     } catch as err {
@@ -1663,6 +1672,9 @@ ReelMouseSpot(clear) {
     try LogVision("Reeling with the mouse clear of the chosen fish")
 }
 
+; The pause after a reel before casting again (Plus: Quick recast, 0.3 s).
+RecastGap() => (IsPlus() && Cfg["PlusQuickRecast"]) ? Min(Cfg["CatchDelay"], 300) : Cfg["CatchDelay"]
+
 
 ;==============================================================================
 ; Auto aquarium. Opens Fisch's aquarium panel, scrolls through the fish food
@@ -2109,7 +2121,7 @@ BuildGui() {
     FocusIdx := 0, FocusOn := false, Hover := 0, ColX := PAGE_X - PAD, RowBase := ROW_Y0
     for t in TabNames
         Pages[t] := {ctls: [], focus: [], desc: ""}
-    MainGui := Gui("-Caption +MinimizeBox" (Cfg["OnTop"] ? " +AlwaysOnTop" : ""), APP_NAME)
+    MainGui := Gui("-Caption +MinimizeBox" (Cfg["OnTop"] ? " +AlwaysOnTop" : ""), AppTitle())
     MainGui.BackColor := Pal.content
     MainGui.MarginX := 0, MainGui.MarginY := 0
     MainGui.OnEvent("Close", (*) => ExitApp())
@@ -2117,7 +2129,7 @@ BuildGui() {
     BuildSidebar()
     BuildChrome()
     BuildStatusBar()
-    BuildHome(), BuildFishing(), BuildTotems(), BuildAquarium(), BuildSovereign(), BuildAlerts(), BuildReconnect(), BuildSettings()
+    BuildHome(), BuildFishing(), BuildTotems(), BuildAquarium(), BuildSovereign(), BuildAlerts(), BuildReconnect(), BuildPlus(), BuildSettings()
     BuildRods(), BuildLive(), BuildReel(), BuildTiming(), BuildMore()
     ColX := PAGE_X - PAD, RowBase := ROW_Y0
     UI.desc := AddT(0, PAGE_X, 354, LEFT_W, 32, "", "body", 9, Pal.dim, Pal.content)
@@ -2133,7 +2145,7 @@ BuildGui() {
 NavIcon(name) {
     static icons := Map("Home", 0xE80F, "Fishing", 0xE768, "Totems", 0xE706, "Aquarium", 0xE71D, "Sovereign", 0xE945
         , "Alerts", 0xE715, "Reconnect", 0xE72C, "Settings", 0xE713, "Rods", 0xE8B7, "Live", 0xE9D9, "Reel", 0xE7C3
-        , "Timing", 0xE823, "More", 0xE712)
+        , "Timing", 0xE823, "More", 0xE712, "Plus", 0xE735)
     return icons.Has(name) ? icons[name] : 0xE76C
 }
 
@@ -2230,7 +2242,7 @@ SbItem(x, w, text, color, extra, right := false) {
 ; Home is the dashboard: what's happening, the fish against the bar, the rod,
 ; the next job, Roblox, and recent events.
 BuildHome() {
-    AddT("Home", PAGE_X, 12, LEFT_W - 90, 30, APP_NAME, "display", 15, Pal.text, Pal.content, "0x200")
+    AddT("Home", PAGE_X, 12, LEFT_W - 90, 30, AppTitle(), "display", 15, Pal.text, Pal.content, "0x200")
     UI.hDot := AddT("Home", PAGE_X, 44, 16, 20, "●", "body", 9, Pal.dim, Pal.content, "0x200")
     UI.hRbx := AddT("Home", PAGE_X + 16, 44, LEFT_W - 16, 20, "Looking for Roblox", "body", 9, Pal.dim, Pal.content, "0x200")
     x := PAGE_X, w := LEFT_W
@@ -2612,6 +2624,7 @@ ShowMain(tab, px := "", py := "") {
     try ApplyAppIcon(MainGui.Hwnd)
     Layout()
     UpdateAll()
+    try PlusGlow.Refresh()                      ; (Plus: the glowing border)
 }
 
 SwitchTab(name, speak := true) {
@@ -2816,7 +2829,7 @@ SaveGeometry() {
     }
 }
 
-RebuildGui() {
+RebuildGui(show := true) {
     global UiReady, Zoom, FocusOn, FocusIdx, Maxed
     if !IsObject(MainGui)
         return
@@ -2833,7 +2846,8 @@ RebuildGui() {
     Zoom := Cfg["Zoom"] / 100
     FreeBrushes()
     BuildGui()
-    ShowMain(tab, IsSet(wx) ? wx : "", IsSet(wy) ? wy : "")
+    if (show = true)                ; (hidden behind the sign-in screen: it's shown from there)
+        ShowMain(tab, IsSet(wx) ? wx : "", IsSet(wy) ? wy : "")
     try old.Destroy()
     if oldLogo
         DllCall("DeleteObject", "Ptr", oldLogo)
@@ -2944,8 +2958,8 @@ SetPhase(kind, title, detail := "") {
     Phase.kind := kind, Phase.title := title, Phase.detail := detail
     PaintPhase()
     if changed {
-        try MainGui.Title := APP_NAME " - " title
-        A_IconTip := SubStr(APP_NAME ": " title, 1, 120)
+        try MainGui.Title := AppTitle() " - " title
+        A_IconTip := SubStr(AppTitle() ": " title, 1, 120)
         if (title != "Casting" && title != "Waiting for a bite")
             Say(title)
         if (kind = "pause")
@@ -3481,7 +3495,10 @@ class Hud {
         this.Update()
         MonitorGetWorkArea(HudMonitor(), &L, &T, &R, &B)
         pw := Round(ZS(this.W) * A_ScreenDPI / 96)
-        x := R - pw - 16, y := T + Round((B - T) * 0.06)
+        ; (Plus can put it in any corner)
+        corner := IsPlus() ? Cfg["PlusPanelCorner"] : "TR", ph := Round(ZS(112) * A_ScreenDPI / 96)
+        x := InStr(corner, "L") ? L + 16 : R - pw - 16
+        y := InStr(corner, "B") ? B - ph - Round((B - T) * 0.06) : T + Round((B - T) * 0.06)
         if Cfg["ReduceMotion"] {
             this.g.Show(Format("x{} y{} NoActivate", x, y))
             return
@@ -3517,8 +3534,9 @@ class Hud {
             this.t.SetFont("c" PhaseColor(Phase.kind))
             this.d.Text := Phase.detail
             secs := Stats.start ? (A_TickCount - Stats.start) // 1000 : 0
-            this.s.Text := Format("{} casts  ·  {} reels  ·  {}:{:02}:{:02}{}", Stats.casts, Stats.reels
-                , secs // 3600, Mod(secs // 60, 60), Mod(secs, 60), IsObject(CurRod) ? "  ·  " CurRod.name : "")
+            rate := (IsPlus() && Cfg["PlusRate"] && secs >= 60) ? Format("  ·  {}/h", Round(Stats.reels * 3600 / secs)) : ""
+            this.s.Text := Format("{} casts  ·  {} reels  ·  {}:{:02}:{:02}{}{}", Stats.casts, Stats.reels
+                , secs // 3600, Mod(secs // 60, 60), Mod(secs, 60), rate, IsObject(CurRod) ? "  ·  " CurRod.name : "")
         }
     }
     static Gauge(l, r, f, live) {
@@ -4029,6 +4047,8 @@ SetToggle(key, on, *) {
     Cfg[key] := on
     Save(key)
     PaintToggle(key)
+    if (SubStr(key, 1, 4) = "Plus")
+        PlusChanged(key)
     switch key {
         case "OnTop":
             try WinSetAlwaysOnTop(on, "ahk_id " MainGui.Hwnd)
@@ -4077,6 +4097,8 @@ SetChoiceValue(key, value, *) {
     Cfg[key] := value
     Save(key)
     PaintSegs(key), PaintChoice(key)
+    if (SubStr(key, 1, 4) = "Plus")
+        PlusChanged(key)
     if (key = "Theme") {
         SetTimer(RebuildGui, -1)
     } else if (key = "ControlStyle") {
@@ -4677,6 +4699,8 @@ EditKey(ed, vk, alt) {
         case 0x0D:
             if (ed.key = "rodtype")
                 UseTypedRod()
+            else if (ed.key = "PlusAccent")
+                PlusChanged("PlusAccent")
             else if (ed.key = "rename")
                 CommitRename(true)
             else
@@ -5400,6 +5424,7 @@ ShowFromTray() {
 
 Cleanup(reason, code) {
     try DiscordAuth.Stop()
+    try PlusGlowStop()
     ReleaseMouse()
     if !NoSave {
         SaveGeometry()
@@ -8648,6 +8673,9 @@ UpdateInfo() {
     if (st != 200)
         return "The update link answered HTTP " st "."
     v := JsonField(txt, "version"), u := JsonField(txt, "url"), h := StrLower(JsonField(txt, "sha256"))
+    ; (the FISCHXR service's address, if the update file names one)
+    if ((api := JsonField(txt, "api")) != "" && RegExMatch(api, "i)^https://") && api != Cfg["ApiUrl"])
+        Cfg["ApiUrl"] := api, Save("ApiUrl")
     if (v = "" || u = "" || !RegExMatch(h, "^[0-9a-f]{64}$"))
         return "The update file is missing its version, download link or SHA-256."
     return {version: v, url: u, sha256: h, notes: JsonField(txt, "notes")}
@@ -8739,6 +8767,17 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.1.0
+- Change your macro's settings right from Discord! Use /settings set in the FISCHXR server and your macro picks it up within a couple of minutes. /settings show and /status tell you how it's doing.
+- The FISCHXR team can now give or take Plus, and keep an account from signing in.
+
+5.0.0
+- Introducing FISCHXR Plus, a thank-you for everyone boosting the FISCHXR Discord server! Sign in with Discord and Plus switches on by itself.
+- Plus gets its own tab: a glowing border around the macro (pink by default, with more colours and a pulsing glow), four Plus themes, and your own accent colour.
+- Plus fishing extras: quick recast, your catch rate on the fishing panel, and a choice of corner for the panel.
+- Plus members see "FISCHXR - PLUS" across the top.
+- Already signed in? Sign in once more so FISCHXR can see you're boosting.
+
 4.9.6
 - Splitbranch Twig catches are way more reliable. After you pick a fish, its reel waits for a click before it starts ("Click & Hold Anywhere!"). FISCHXR now gives it that click right away and won't give up on the reel while it warms up.
 - The Splitbranch choice timer is followed all the way down, even as it turns yellow, orange and red.
@@ -9110,6 +9149,8 @@ SaveUnmatched(b) {
 ;==============================================================================
 IsGuest() => AuthState.mode != "discord"
 TabLocked(name) {
+    if (name = "Plus")
+        return !IsPlus()
     if !IsGuest()
         return false
     for t in GUEST_TABS
@@ -9119,7 +9160,7 @@ TabLocked(name) {
 }
 UnixNow() => DateDiff(A_NowUTC, "19700101000000", "Seconds")
 SaveAuth() {
-    for k in ["AuthMode", "AuthTok", "AuthExp", "AuthName", "AuthId"]
+    for k in ["AuthMode", "AuthTok", "AuthExp", "AuthName", "AuthId", "AuthScope"]
         try Save(k)
 }
 
@@ -9132,8 +9173,17 @@ AuthGate() {
         tok := Unprotect(Cfg["AuthTok"])
         if (tok != "") {
             me := DiscordMe(tok, &status)
-            if IsObject(me)
-                return (SignedIn(me, tok, Cfg["AuthExp"], false), true)
+            if IsObject(me) {
+                r := Remote.Check(tok)
+                if (r.ok && r.blacklisted) {           ; not allowed to sign in: the sign-in screen says so
+                    ForgetSignIn(), AuthState.blockMsg := BlockText(r.reason)
+                    return false
+                }
+                SignedIn(me, tok, Cfg["AuthExp"], false)
+                if r.ok
+                    RemoteApply(r)
+                return true
+            }
             if (status = 0 && Cfg["AuthName"] != "")    ; offline: the remembered sign-in holds until it expires
                 return (SignedIn({id: Cfg["AuthId"], name: Cfg["AuthName"]}, tok, Cfg["AuthExp"], false), true)
         }
@@ -9154,13 +9204,19 @@ SignedIn(me, tok, exp, fresh) {
             try Run(DISCORD_INVITE)              ; the FISCHXR Discord server
     }
     ApplyAuth()
+    AuthState.access := Cfg["PlusAccess"]       ; (Plus given or taken by the team)
+    PlusCheck(tok)                              ; boosting the FISCHXR server: Plus
+    Remote.Start()                              ; the FISCHXR service: rules and remote settings
 }
 
 SignOut(prompt := true) {
     AuthState.mode := prompt ? "" : "guest", AuthState.id := "", AuthState.name := ""
-    for k in ["AuthMode", "AuthTok", "AuthName", "AuthId"]
+    for k in ["AuthMode", "AuthTok", "AuthName", "AuthId", "AuthScope"]
         Cfg[k] := ""
     Cfg["AuthExp"] := 0
+    AuthState.access := ""
+    try Remote.Stop()
+    PlusSet(false, "")
     SaveAuth()
     LogEvent("Signed out")
     if prompt
@@ -9252,7 +9308,7 @@ UrlDecode(s) {
 }
 
 class DiscordAuth {
-    static sock := 0, client := 0, buf := "", state := "", t0 := 0, cT := 0, ticker := 0, whenDone := 0
+    static sock := 0, client := 0, buf := "", state := "", t0 := 0, cT := 0, ticker := 0, whenDone := 0, scope := ""
 
     ; Opens Discord's sign-in page and waits for the browser to come back.
     ; whenDone(ok, tokenOrMessage, expiresIn) is called once.
@@ -9263,7 +9319,7 @@ class DiscordAuth {
             return this.Finish(false, "Couldn't start the sign-in listener (port " DISCORD_PORT " is in use). Close other copies of FISCHXR and try again.")
         this.state := AuthTest.state != "" ? AuthTest.state : Format("{:08x}{:08x}", Random(0, 0x7FFFFFFF), Random(0, 0x7FFFFFFF))
         url := "https://discord.com/oauth2/authorize?client_id=" DISCORD_CLIENT_ID "&response_type=token"
-            . "&redirect_uri=http%3A%2F%2F127.0.0.1%3A" DISCORD_PORT "%2Fcallback&scope=identify&state=" this.state
+            . "&redirect_uri=http%3A%2F%2F127.0.0.1%3A" DISCORD_PORT "%2Fcallback&scope=identify%20guilds.members.read&state=" this.state
         if !AuthTest.noBrowser
             try Run(url)
         this.t0 := A_TickCount
@@ -9332,6 +9388,7 @@ class DiscordAuth {
                 return
             if (!q.Has("state") || q["state"] != this.state)
                 return this.Finish(false, "That sign-in didn't come from this window. Try again.")
+            this.scope := q.Has("scope") ? q["scope"] : ""
             return this.Finish(true, q["access_token"], q.Has("expires_in") ? Integer(q["expires_in"]) : 604800)
         } else
             this.Reply("Not found", "text/plain", "404 Not Found")
@@ -9416,11 +9473,11 @@ class Login {
         g := Gui("-Caption +MinimizeBox" (Cfg["OnTop"] ? " +AlwaysOnTop" : ""), APP_NAME)
         g.BackColor := "000000", g.MarginX := 0, g.MarginY := 0
         this.g := g, this.own := [], this.pics := Map(), this.busy := false, this.hot := 0
-        this.label := "Login with |Discord", this.statusText := ""
+        this.label := "Login with |Discord", this.statusText := AuthState.blockMsg, AuthState.blockMsg := ""
         SignArt.Start()
         ; the picture behind everything, then the parts that change over it
         this.Pic("bg", 0, 0, 540, 416, SignArt.Background(), 0x04000000)      ; (clips its siblings: no overdraw)
-        this.Pic("status", 19, 230, 420, 40, SignArt.Status(""))
+        this.Pic("status", 19, 230, 420, 40, SignArt.Status(this.statusText))
         this.Pic("guest", 15, 368, 160, 26, SignArt.Guest(0))
         this.Pic("btn", 292, 337, 245, 67, SignArt.Button(this.label, 0))
         Clickables[this.pics["btn"].Hwnd] := {kind: "btn", fn: (*) => Login.Start(), obj: this.pics["btn"], bg: "000000", hv: "000000", onHover: (hot) => Login.HoverBtn(hot)}
@@ -9512,7 +9569,16 @@ class Login {
             this.SetLabel("Login with |Discord"), this.SetStatus("Couldn't confirm your Discord account. Try again.")
             return
         }
+        r := Remote.Check(a)
+        if (r.ok && r.blacklisted) {
+            this.SetLabel("Login with |Discord"), this.SetStatus(BlockText(r.reason))
+            try LogEvent("Sign-in refused: this Discord account isn't allowed to sign in")
+            return
+        }
+        Cfg["AuthScope"] := DiscordAuth.scope
         SignedIn(me, a, UnixNow() + b, true)
+        if r.ok
+            RemoteApply(r)
         this.Close()
     }
 
@@ -9770,8 +9836,11 @@ class LockPanel {
         this.title := AddT(0, PAGE_X, 160, LEFT_W, 30, "", "display", 14, Pal.text, Pal.content, "0x200")
         body := AddT(0, PAGE_X, 194, LEFT_W, 44, "Discord alerts, auto-reconnect, the aquarium and Sovereign are for signed-in users. Sign in with Discord to use them.", "body", 10, Pal.dim, Pal.content)
         b := AddT(0, PAGE_X, 250, 210, 36, "Log in with Discord", "body", 10, "FFFFFF", "5865F2", "Center 0x200")
-        Clickables[b.Hwnd] := {kind: "btn", fn: (*) => Login.Show(), obj: b, bg: "5865F2", hv: "4752C4"}
-        this.ctls := [ic, this.title, body, b]
+        Clickables[b.Hwnd] := {kind: "btn", fn: (*) => LockAction(), obj: b, bg: "5865F2", hv: "4752C4"}
+        b2 := AddT(0, PAGE_X + 222, 250, 210, 36, "Open the FISCHXR server", "body", 10, Pal.text, Pal.field, "Center 0x200")
+        Clickables[b2.Hwnd] := {kind: "btn", fn: (*) => Run(DISCORD_INVITE), obj: b2, bg: Pal.field, hv: Pal.fieldHi}
+        this.body := body, this.btn := b, this.btn2 := b2
+        this.ctls := [ic, this.title, body, b, b2]
         for c in this.ctls
             c.Visible := false
     }
@@ -9779,8 +9848,22 @@ class LockPanel {
     static Show(tab) {
         for c in this.ctls
             c.Visible := (tab != "")
-        if (tab != "")
+        this.btn2.Visible := (tab = "Plus")
+        if (tab = "")
+            return
+        if (tab = "Plus") {
+            this.title.Text := "FISCHXR Plus"
+            this.body.Text := IsGuest() ? "Plus is for people boosting the FISCHXR Discord server: a glowing border, Plus themes, your own accent colour and extra fishing tweaks. Sign in with Discord to check."
+                : AuthState.plusWhy = "scope" ? "Sign in again so FISCHXR can check whether you're boosting the FISCHXR server."
+                : AuthState.plusWhy = "revoked" ? "Plus has been turned off for your account by the FISCHXR team. Ask in the FISCHXR Discord server if you think that's a mistake."
+                : AuthState.plusWhy = "notmember" ? "Join the FISCHXR Discord server and boost it to unlock Plus: a glowing border, Plus themes, your own accent colour and extra fishing tweaks."
+                : "Boost the FISCHXR Discord server to unlock Plus: a glowing border, Plus themes, your own accent colour and extra fishing tweaks."
+            this.btn.Text := IsGuest() ? "Log in with Discord" : AuthState.plusWhy = "scope" ? "Sign in again" : "Check my boost"
+        } else {
             this.title.Text := "Sign in to use " tab
+            this.body.Text := "Discord alerts, auto-reconnect, the aquarium and Sovereign are for signed-in users. Sign in with Discord to use them."
+            this.btn.Text := "Log in with Discord"
+        }
     }
 }
 
@@ -10308,5 +10391,621 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 )"
     }
     return ""
+}
+
+;==============================================================================
+; FISCHXR Plus: for people boosting the FISCHXR Discord server. At sign-in
+; (and at each start) FISCHXR asks Discord for the member's entry in the
+; server; a "premium_since" there means they're boosting. The answer is kept
+; for the next start. Plus adds its own tab: a glowing border, Plus themes and
+; a custom accent, quick recast, the catch rate and the fishing panel's corner.
+; The title becomes "FISCHXR - PLUS".
+; (Like the guest limits, this is checked in the script itself.)
+;==============================================================================
+IsPlus() {
+    if (AuthState.mode = "discord")
+        return AuthState.plus
+    return AuthState.mode = "" && Cfg["PlusCached"] && Cfg["AuthMode"] = "discord"   ; (at start, before it's checked)
+}
+AppTitle() => IsPlus() ? "FISCHXR - PLUS" : APP_NAME
+
+; Asks Discord whether the signed-in member boosts the FISCHXR server.
+PlusCheck(tok) {
+    ; the FISCHXR team's say comes first: Plus given, or taken away
+    if (AuthState.access = "grant")
+        return PlusSet(true, "")
+    if (AuthState.access = "revoke")
+        return PlusSet(false, "revoked")
+    if (AuthTest.noPrompt && !AuthTest.HasOwnProp("member"))
+        return
+    r := AuthTest.HasOwnProp("member") ? (f := AuthTest.member, f(tok)) : DiscordMember(tok)
+    switch r.status {
+        case 200:
+            PlusSet(r.premium, r.premium ? "" : "notboosting")
+        case 401, 403:
+            PlusSet(false, "scope")                     ; signed in before Plus: sign in again
+        case 404:
+            PlusSet(false, "notmember")
+        default:                                        ; no answer (offline): as last time
+            PlusSet(Cfg["PlusCached"] ? true : false, "")
+    }
+}
+
+PlusSet(on, why) {
+    was := AuthState.plus
+    AuthState.plus := on ? true : false, AuthState.plusWhy := why
+    Cfg["PlusCached"] := AuthState.plus ? 1 : 0
+    try Save("PlusCached")
+    if (was != AuthState.plus) {
+        try LogEvent(AuthState.plus ? "FISCHXR Plus is on. Thanks for boosting!" : "FISCHXR Plus is off")
+        PlusStatusChanged()
+    } else if UiReady
+        try LockPanel.Show(TabLocked(CurTab) ? CurTab : "")
+}
+
+; Plus came or went: the window is rebuilt (title, tab, theme), left hidden
+; if it is (behind the sign-in screen), and the glow follows.
+PlusStatusChanged() {
+    if !(UiReady && IsObject(MainGui))
+        return
+    RebuildGui(DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd) ? true : false)
+    PlusGlow.Refresh()
+}
+
+; The member's entry in the FISCHXR server: {status, premium}.
+DiscordMember(tok) {
+    gid := PlusGuildId()
+    if (gid = "")
+        return {status: 0, premium: false}
+    try {
+        req := ComObject("WinHttp.WinHttpRequest.5.1")
+        req.Open("GET", "https://discord.com/api/v10/users/@me/guilds/" gid "/member", false)
+        req.SetTimeouts(5000, 5000, 5000, 5000)
+        req.SetRequestHeader("Authorization", "Bearer " tok)
+        req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
+        req.Send()
+        st := req.Status
+        return {status: st, premium: st = 200 && RegExMatch(req.ResponseText, '"premium_since"\s*:\s*"')}
+    }
+    return {status: 0, premium: false}
+}
+
+; The FISCHXR server's ID: set in the script, or found once from the invite.
+PlusGuildId() {
+    if (FISCHXR_GUILD_ID != "")
+        return FISCHXR_GUILD_ID
+    if (Cfg["GuildId"] != "")
+        return Cfg["GuildId"]
+    code := RegExReplace(DISCORD_INVITE, ".*/")
+    try {
+        req := ComObject("WinHttp.WinHttpRequest.5.1")
+        req.Open("GET", "https://discord.com/api/v10/invites/" code, false)
+        req.SetTimeouts(5000, 5000, 5000, 5000)
+        req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
+        req.Send()
+        if (req.Status = 200 && (RegExMatch(req.ResponseText, '"guild_id"\s*:\s*"(\d+)"', &m) || RegExMatch(req.ResponseText, '"guild"\s*:\s*\{\s*"id"\s*:\s*"(\d+)"', &m))) {
+            Cfg["GuildId"] := m[1]
+            try Save("GuildId")
+            return m[1]
+        }
+    }
+    return ""
+}
+
+; The Plus tab's button (and the guest pages'): sign in, sign in again, or check.
+LockAction() {
+    if (CurTab != "Plus" || IsGuest() || AuthState.plusWhy = "scope" || Cfg["AuthTok"] = "")
+        return Login.Show(CurTab)
+    tok := Unprotect(Cfg["AuthTok"])
+    if (tok = "")
+        return Login.Show(CurTab)
+    LockPanel.body.Text := "Checking with Discord..."
+    PlusCheck(tok)
+    if !IsPlus()
+        LockPanel.Show("Plus")
+}
+
+; A Plus setting changed.
+PlusChanged(key) {
+    switch key {
+        case "PlusGlow", "PlusGlowColor", "PlusGlowStyle":
+            PlusGlow.Refresh()
+        case "PlusTheme":
+            SetTimer(RebuildGui, -1)
+        case "PlusAccent":
+            if (Cfg["PlusAccent"] = "" || RegExMatch(Cfg["PlusAccent"], "i)^#?[0-9A-F]{6}$"))
+                SetTimer(RebuildGui, -1)
+    }
+}
+
+; Plus themes (on top of the look the rest of the window uses).
+PlusThemeSet() {
+    static t := Map(
+        "Sakura", {strip: "120910", bar: "22121E", seam: "3A1E33", content: "1B0E18", field: "2D1829", fieldHi: "3D2238",
+            divider: "3A2235", text: "FFEAF7", dim: "CFA7C3", faint: "80607A", accent: "FF6FD8", accentHi: "FF9BE5", ink: "2A0621",
+            wait: "F2B24C", stop: "FF7A6E", focus: "FFFFFF", ring: 2, dark: true},
+        "Midnight", {strip: "070B16", bar: "111A2E", seam: "1C2944", content: "0C1324", field: "18233C", fieldHi: "22304F",
+            divider: "22304A", text: "E8EEFF", dim: "9FB0D6", faint: "5A6A8F", accent: "6FA8FF", accentHi: "9CC4FF", ink: "06122A",
+            wait: "F2B24C", stop: "FF7A6E", focus: "FFFFFF", ring: 2, dark: true},
+        "Emerald", {strip: "06110C", bar: "0F2219", seam: "1A3627", content: "0B1A13", field: "15291F", fieldHi: "1E3829",
+            divider: "1E3629", text: "E6FFF1", dim: "9CCBB0", faint: "5A8069", accent: "3EE89A", accentHi: "7BF2BA", ink: "032014",
+            wait: "F2B24C", stop: "FF7A6E", focus: "FFFFFF", ring: 2, dark: true},
+        "Sunset", {strip: "140A06", bar: "26140D", seam: "3D2215", content: "1E100A", field: "301B11", fieldHi: "402418",
+            divider: "3D2317", text: "FFF0E6", dim: "D6AE96", faint: "8A6552", accent: "FF9A4A", accentHi: "FFBA80", ink: "2A1003",
+            wait: "F2B24C", stop: "FF6E6E", focus: "FFFFFF", ring: 2, dark: true})
+    return t
+}
+
+; A Plus custom accent colour (a code like FF4FD8), on any theme but the
+; black-and-white one.
+PlusAccentOn() {
+    global Pal
+    if !(IsPlus() && RegExMatch(Cfg["PlusAccent"], "i)^#?([0-9A-F]{6})$", &m)) || Pal.HasOwnProp("mono")
+        return
+    c := StrUpper(m[1]), v := Integer("0x" c)
+    lum := (2 * ((v >> 16) & 255) + 5 * ((v >> 8) & 255) + (v & 255)) / 8
+    Pal.accent := c, Pal.accentHi := Mix(c, "FFFFFF", 0.3), Pal.ink := lum > 140 ? "101010" : "FFFFFF"
+}
+
+PlusGlowColor() {
+    static c := Map("Pink", "FF4FD8", "Purple", "A970FF", "Blue", "4F8BFF", "Cyan", "3FE0F0", "Green", "4FE38A", "Gold", "FFC940", "Red", "FF5A5A", "White", "FFFFFF")
+    return c.Has(Cfg["PlusGlowColor"]) ? c[Cfg["PlusGlowColor"]] : "FF4FD8"
+}
+
+; The Plus page.
+BuildPlus() {
+    global ColX, RowBase
+    ColX := PAGE_X - PAD, RowBase := ROW_Y0
+    PageHead("Plus", "FISCHXR Plus", "Thanks for boosting the FISCHXR server! Make the macro yours.")
+    Toggle("Plus", 0, "PlusGlow", "Glowing border", "A soft glow around the window.")
+    Choice("Plus", 1, "PlusGlowColor", "Border colour", [["Pink", "Pink"], ["Purple", "Purple"], ["Blue", "Blue"], ["Cyan", "Cyan"]
+        , ["Green", "Green"], ["Gold", "Gold"], ["Red", "Red"], ["White", "White"]], "The colour of the glow.")
+    Choice("Plus", 2, "PlusGlowStyle", "Glow", [["Soft", "Soft"], ["Medium", "Medium"], ["Strong", "Strong"], ["Pulsing", "Pulsing"]]
+        , "How bright the glow is, or a slow pulse.")
+    Choice("Plus", 3, "PlusTheme", "Plus theme", [["", "Off (your theme)"], ["Sakura", "Sakura"], ["Midnight", "Midnight"]
+        , ["Emerald", "Emerald"], ["Sunset", "Sunset"]], "Colour themes only Plus has. Off keeps the theme from Settings.")
+    EditRow("Plus", 4, "PlusAccent", "Custom accent", "Your own accent colour, as a code like FF4FD8, then Enter. Leave it empty for the theme's own.")
+    Toggle("Plus", 5, "PlusQuickRecast", "Quick recast", "Casts again 0.3 s after a catch instead of waiting a full second.")
+    Toggle("Plus", 6, "PlusRate", "Catch rate on the panel", "Shows your catches per hour on the small fishing panel.")
+    Choice("Plus", 7, "PlusPanelCorner", "Fishing panel corner", [["TR", "Top right"], ["TL", "Top left"], ["BR", "Bottom right"], ["BL", "Bottom left"]]
+        , "Where the small panel sits while you fish.")
+}
+
+;------------------------------------------------------------------------------
+; The glowing border: a click-through window just behind the main one, a
+; little bigger, holding a soft ring in the chosen colour. It follows the
+; window and hides with it (while fishing, on the sign-in screen, minimized).
+;------------------------------------------------------------------------------
+class PlusGlow {
+    static g := 0, dc := 0, hbm := 0, old := 0, key := "", ticker := 0, pulser := 0, hooked := false, alpha := 255
+
+    static Want() => IsPlus() && Cfg["PlusGlow"] && IsSet(MainGui) && IsObject(MainGui) && UiReady && !Login.g
+        && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd) && !DllCall("IsIconic", "Ptr", MainGui.Hwnd)
+
+    ; Settings or Plus changed: redraw, and watch the window.
+    static Refresh() {
+        if !this.hooked
+            OnMessage(0x47, PlusGlowMoved), this.hooked := true      ; WM_WINDOWPOSCHANGED
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Sync"), this.pulser := ObjBindMethod(this, "Pulse")
+        this.key := ""
+        on := IsPlus() && Cfg["PlusGlow"]
+        SetTimer(this.ticker, on ? 300 : 0)
+        SetTimer(this.pulser, on && Cfg["PlusGlowStyle"] = "Pulsing" ? 40 : 0)
+        this.alpha := 255
+        try SetDwmBorder(MainGui.Hwnd, on ? PlusGlowColor() : "")
+        this.Sync()
+    }
+
+    static Sync() {
+        if !this.Want() {
+            if (this.g && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd))
+                this.g.Hide()
+            return
+        }
+        if !this.g {
+            this.g := Gui("-Caption +ToolWindow +E0x80020 +E0x08000000 -DPIScale", "FISCHXR glow")
+            this.g.Show("NA x0 y0 w1 h1")
+        }
+        WinGetPos(&x, &y, &w, &h, "ahk_id " MainGui.Hwnd)
+        G := Round(16 * A_ScreenDPI / 96), W2 := w + 2 * G, H2 := h + 2 * G
+        k := W2 "x" H2 "|" PlusGlowColor() "|" Cfg["PlusGlowStyle"]
+        if (k != this.key)
+            this.Draw(W2, H2, G), this.key := k
+        this.Blend(x - G, y - G, W2, H2)
+        ; just behind the main window
+        DllCall("SetWindowPos", "Ptr", this.g.Hwnd, "Ptr", MainGui.Hwnd, "Int", x - G, "Int", y - G, "Int", W2, "Int", H2, "UInt", 0x10 | 0x40)
+    }
+
+    static Draw(W2, H2, G) {
+        this.Free()
+        bi := Buffer(40, 0)
+        NumPut("UInt", 40, bi, 0), NumPut("Int", W2, bi, 4), NumPut("Int", -H2, bi, 8), NumPut("UShort", 1, bi, 12), NumPut("UShort", 32, bi, 14)
+        this.dc := DllCall("CreateCompatibleDC", "Ptr", 0, "Ptr")
+        this.hbm := DllCall("CreateDIBSection", "Ptr", this.dc, "Ptr", bi, "UInt", 0, "Ptr*", &bits := 0, "Ptr", 0, "UInt", 0, "Ptr")
+        this.old := DllCall("SelectObject", "Ptr", this.dc, "Ptr", this.hbm, "Ptr")
+        if !Gdip.Start()
+            return
+        DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", W2, "Int", H2, "Int", W2 * 4, "Int", 0xE200B, "Ptr", bits, "Ptr*", &bmp := 0)
+        DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", bmp, "Ptr*", &gr := 0)
+        DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", gr, "Int", 4)
+        rgb := Integer("0x" PlusGlowColor())
+        per := Map("Soft", 8, "Medium", 12, "Strong", 18, "Pulsing", 14), per := per.Has(Cfg["PlusGlowStyle"]) ? per[Cfg["PlusGlowStyle"]] : 12
+        ; rings fading outward, then a crisp line at the window's edge
+        loop G {
+            i := G - A_Index + 1, a := Round(per * (1 - (i - 1) / G) ** 1.6) + 1
+            p := GlowRoundPath(G - i, G - i, W2 - 2 * (G - i), H2 - 2 * (G - i), 8 + i)
+            DllCall("gdiplus\GdipCreateSolidFill", "UInt", (a << 24) | rgb, "Ptr*", &br := 0)
+            DllCall("gdiplus\GdipFillPath", "Ptr", gr, "Ptr", br, "Ptr", p)
+            DllCall("gdiplus\GdipDeleteBrush", "Ptr", br), DllCall("gdiplus\GdipDeletePath", "Ptr", p)
+        }
+        p := GlowRoundPath(G - 1, G - 1, W2 - 2 * G + 2, H2 - 2 * G + 2, 9)
+        DllCall("gdiplus\GdipCreatePen1", "UInt", 0xE0000000 | rgb, "Float", 2.0, "Int", 2, "Ptr*", &pen := 0)
+        DllCall("gdiplus\GdipDrawPath", "Ptr", gr, "Ptr", pen, "Ptr", p)
+        DllCall("gdiplus\GdipDeletePen", "Ptr", pen), DllCall("gdiplus\GdipDeletePath", "Ptr", p)
+        DllCall("gdiplus\GdipDeleteGraphics", "Ptr", gr), DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
+    }
+
+    static Blend(x := "", y := "", w := 0, h := 0) {
+        if !(this.g && this.dc)
+            return
+        bl := Buffer(4, 0)
+        NumPut("UChar", 0, bl, 0), NumPut("UChar", 0, bl, 1), NumPut("UChar", this.alpha, bl, 2), NumPut("UChar", 1, bl, 3)
+        if (x = "")
+            return DllCall("UpdateLayeredWindow", "Ptr", this.g.Hwnd, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 0, "Ptr", bl, "UInt", 2)
+        pt := Buffer(8), sz := Buffer(8), src := Buffer(8, 0)
+        NumPut("Int", x, "Int", y, pt), NumPut("Int", w, "Int", h, sz)
+        DllCall("UpdateLayeredWindow", "Ptr", this.g.Hwnd, "Ptr", 0, "Ptr", pt, "Ptr", sz, "Ptr", this.dc, "Ptr", src, "UInt", 0, "Ptr", bl, "UInt", 2)
+    }
+
+    ; "Pulsing": the whole glow breathes (only its strength changes).
+    static Pulse() {
+        if !(this.g && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd))
+            return
+        this.alpha := Round(120 + 135 * (0.5 + 0.5 * Sin(A_TickCount / 1000 * 3.5)))
+        this.Blend()
+    }
+
+    static Free() {
+        if this.dc {
+            DllCall("SelectObject", "Ptr", this.dc, "Ptr", this.old)
+            DllCall("DeleteObject", "Ptr", this.hbm), DllCall("DeleteDC", "Ptr", this.dc)
+        }
+        this.dc := 0, this.hbm := 0
+    }
+}
+
+PlusGlowMoved(wParam, lParam, msg, hwnd) {
+    ; (checked first: while FISCHXR closes, the window can already be gone)
+    if (PlusGlow.g && IsSet(MainGui) && IsObject(MainGui))
+        try (hwnd = MainGui.Hwnd) && PlusGlow.Sync()
+}
+
+; FISCHXR is closing: the glow stops following and goes.
+PlusGlowStop() {
+    try OnMessage(0x47, PlusGlowMoved, 0)
+    if PlusGlow.ticker
+        try SetTimer(PlusGlow.ticker, 0), SetTimer(PlusGlow.pulser, 0)
+    if PlusGlow.g
+        try PlusGlow.g.Destroy()
+    PlusGlow.g := 0
+    PlusGlow.Free()
+}
+
+; A rounded rectangle path (pixels).
+GlowRoundPath(x, y, w, h, r) {
+    d := 2 * r
+    DllCall("gdiplus\GdipCreatePath", "Int", 0, "Ptr*", &p := 0)
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", p, "Float", x, "Float", y, "Float", d, "Float", d, "Float", 180, "Float", 90)
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", p, "Float", x + w - d, "Float", y, "Float", d, "Float", d, "Float", 270, "Float", 90)
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", p, "Float", x + w - d, "Float", y + h - d, "Float", d, "Float", d, "Float", 0, "Float", 90)
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", p, "Float", x, "Float", y + h - d, "Float", d, "Float", d, "Float", 90, "Float", 90)
+    DllCall("gdiplus\GdipClosePathFigure", "Ptr", p)
+    return p
+}
+
+; Windows 11's thin window border, in a colour ("" for the usual one).
+SetDwmBorder(hwnd, rgb) {
+    buf := Buffer(4)
+    if (rgb = "")
+        NumPut("UInt", 0xFFFFFFFF, buf)                 ; DWMWA_COLOR_DEFAULT
+    else {
+        v := Integer("0x" rgb)
+        NumPut("UInt", ((v & 0xFF) << 16) | (v & 0xFF00) | ((v >> 16) & 0xFF), buf)
+    }
+    DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 34, "Ptr", buf, "UInt", 4)
+}
+
+;==============================================================================
+; The FISCHXR service: a small Cloudflare Worker the FISCHXR bot also talks to.
+; With the user's own Discord sign-in, the macro reads its entry there: the
+; FISCHXR team's rules (Plus given or taken away, or not allowed to sign in)
+; and settings the user changed from Discord with /settings. It tells the
+; service, only when something changed, its version, whether it's fishing and
+; its settings, for /status and /settings show in Discord.
+;==============================================================================
+RemoteUrl() => RTrim(FISCHXR_API != "" ? FISCHXR_API : Cfg["ApiUrl"], "/")
+
+; The settings /settings can change: the name used in Discord, the setting,
+; and what it accepts (numbers keep the macro's own limits).
+RemoteSpec() {
+    static s := Map(
+        "cast-hold", {key: "CastHold", kind: "num"},
+        "bobber-wait", {key: "BobberWait", kind: "num"},
+        "bite-timeout", {key: "BiteTimeout", kind: "num"},
+        "catch-delay", {key: "CatchDelay", kind: "num"},
+        "shake-interval", {key: "ShakeInterval", kind: "num"},
+        "shake-mode", {key: "ShakeMode", kind: "choice", opts: [["Navigation", "Navigation"], ["Click", "Click"]]},
+        "auto-reconnect", {key: "AutoReconnect", kind: "bool"},
+        "theme", {key: "Theme", kind: "choice", opts: [["Black", "Black"], ["Dark", "Dark"], ["Light", "Light"], ["High contrast", "High contrast"]]},
+        "rod", {key: "RodManual", kind: "rod"},
+        "plus-glow", {key: "PlusGlow", kind: "bool", plus: true},
+        "plus-glow-color", {key: "PlusGlowColor", kind: "choice", plus: true, opts: [["Pink", "Pink"], ["Purple", "Purple"], ["Blue", "Blue"], ["Cyan", "Cyan"], ["Green", "Green"], ["Gold", "Gold"], ["Red", "Red"], ["White", "White"]]},
+        "plus-glow-style", {key: "PlusGlowStyle", kind: "choice", plus: true, opts: [["Soft", "Soft"], ["Medium", "Medium"], ["Strong", "Strong"], ["Pulsing", "Pulsing"]]},
+        "plus-theme", {key: "PlusTheme", kind: "choice", plus: true, opts: [["off", ""], ["Sakura", "Sakura"], ["Midnight", "Midnight"], ["Emerald", "Emerald"], ["Sunset", "Sunset"]]},
+        "plus-accent", {key: "PlusAccent", kind: "hex", plus: true},
+        "quick-recast", {key: "PlusQuickRecast", kind: "bool", plus: true},
+        "catch-rate", {key: "PlusRate", kind: "bool", plus: true},
+        "panel-corner", {key: "PlusPanelCorner", kind: "choice", plus: true, opts: [["top-right", "TR"], ["top-left", "TL"], ["bottom-right", "BR"], ["bottom-left", "BL"]]})
+    return s
+}
+
+BlockText(reason) => "This Discord account isn't allowed to sign in to FISCHXR" (reason != "" ? " (" reason ")" : "") ". You can still continue as a guest."
+
+; Forgets the saved sign-in without going to the sign-in screen.
+ForgetSignIn() {
+    for k in ["AuthMode", "AuthTok", "AuthName", "AuthId", "AuthScope", "PlusAccess"]
+        Cfg[k] := ""
+    Cfg["AuthExp"] := 0, Cfg["PlusCached"] := 0
+    for k in ["AuthMode", "AuthTok", "AuthExp", "AuthName", "AuthId", "AuthScope", "PlusAccess", "PlusCached"]
+        try Save(k)
+}
+
+class Remote {
+    static req := 0, t0 := 0, ticker := 0, waiter := 0, lastState := "", learned := false
+
+    static Start() {
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Poll"), this.waiter := ObjBindMethod(this, "Wait")
+        SetTimer(this.ticker, 120000)                       ; every 2 minutes while signed in
+        SetTimer(RemoteReportSoon, -3000)
+    }
+    static Stop() {
+        if this.ticker
+            SetTimer(this.ticker, 0), SetTimer(this.waiter, 0)
+        this.req := 0, this.lastState := ""
+    }
+
+    ; At sign-in (it waits for the answer, 4 s at most): {ok, blacklisted, reason, access, body}
+    static Check(tok) {
+        if AuthTest.HasOwnProp("api") {
+            f := AuthTest.api
+            return this.Read(f(tok))
+        }
+        if (AuthTest.noPrompt || this.Url() = "")
+            return {ok: false}
+        try {
+            req := ComObject("WinHttp.WinHttpRequest.5.1")
+            req.Open("GET", this.Url() "/me?since=" Cfg["ApiSeq"], false)
+            req.SetTimeouts(4000, 4000, 4000, 4000)
+            req.SetRequestHeader("Authorization", "Bearer " tok)
+            req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
+            req.Send()
+            if (req.Status = 200)
+                return this.Read(req.ResponseText)
+        }
+        return {ok: false}
+    }
+
+    ; The service's address; learned from update.json once, if it isn't known.
+    static Url() {
+        if (RemoteUrl() = "" && !this.learned && !AuthTest.noPrompt) {
+            this.learned := true
+            try {
+                txt := HttpGet(Trim(Cfg["UpdateUrl"]), &st, false, 4000)
+                if ((api := JsonField(txt, "api")) != "" && RegExMatch(api, "i)^https://"))
+                    Cfg["ApiUrl"] := api, Save("ApiUrl")
+            }
+        }
+        return RemoteUrl()
+    }
+
+    static Read(js) => {ok: js != "", body: js, blacklisted: RegExMatch(js, '"blacklisted"\s*:\s*true') > 0
+        , access: RegExMatch(js, '"access"\s*:\s*"(grant|revoke)"', &m) ? m[1] : ""
+        , reason: RegExMatch(js, '"reason"\s*:\s*"((?:[^"\\]|\\.)*)"', &r) ? JsonUnescape(r[1]) : ""}
+
+    ; Every 2 minutes: asks without waiting; Wait() takes the answer.
+    static Poll() {
+        if (IsGuest() || this.req || this.Url() = "")
+            return
+        tok := Unprotect(Cfg["AuthTok"])
+        if (tok = "")
+            return
+        try {
+            req := ComObject("WinHttp.WinHttpRequest.5.1")
+            req.Open("GET", this.Url() "/me?since=" Cfg["ApiSeq"], true)
+            req.SetTimeouts(5000, 5000, 5000, 5000)
+            req.SetRequestHeader("Authorization", "Bearer " tok)
+            req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
+            req.Send()
+            this.req := req, this.t0 := A_TickCount
+            SetTimer(this.waiter, 250)
+        }
+    }
+    static Wait() {
+        if !this.req
+            return SetTimer(this.waiter, 0)
+        done := false
+        try done := this.req.WaitForResponse(0)
+        if !done {
+            if (A_TickCount - this.t0 > 12000)
+                try this.req.Abort(), this.req := 0, SetTimer(this.waiter, 0)
+            return
+        }
+        SetTimer(this.waiter, 0)
+        req := this.req, this.req := 0
+        try {
+            if (req.Status = 200)
+                RemoteApply(this.Read(req.ResponseText))
+        }
+    }
+
+    ; Tells the service the macro's state, when it changed (fire and forget).
+    static Report() {
+        if (IsGuest() || this.Url() = "")
+            return
+        js := RemoteStateJson()
+        if (js = this.lastState)
+            return
+        tok := Unprotect(Cfg["AuthTok"])
+        if (tok = "")
+            return
+        this.lastState := js
+        try {
+            req := ComObject("WinHttp.WinHttpRequest.5.1")
+            req.Open("PUT", this.Url() "/me/state", true)
+            req.SetRequestHeader("Authorization", "Bearer " tok)
+            req.SetRequestHeader("Content-Type", "application/json")
+            req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
+            req.Send(js)
+            this.sending := req                              ; (kept until it's sent)
+        }
+    }
+}
+RemoteReportSoon() => Remote.Report()
+
+; What the service said: the rules first, then settings changed from Discord.
+RemoteApply(r) {
+    if !r.ok
+        return
+    if r.blacklisted {
+        if !IsGuest() {
+            try LogEvent("This Discord account isn't allowed to sign in any more: signed out")
+            SignOut(false), ForgetSignIn()
+            AuthState.blockMsg := BlockText(r.reason)
+            Login.Show(CurTab)
+        }
+        return
+    }
+    if (r.access != AuthState.access) {
+        AuthState.access := r.access, Cfg["PlusAccess"] := r.access
+        try Save("PlusAccess")
+        try LogEvent(r.access = "grant" ? "The FISCHXR team gave you Plus" : r.access = "revoke" ? "The FISCHXR team turned Plus off for your account" : "Plus is back to depending on boosting")
+        tok := Unprotect(Cfg["AuthTok"])
+        PlusCheck(tok)
+    }
+    RemoteSettings(r.body)
+    SetTimer(RemoteReportSoon, -1000)
+}
+
+; Settings changed from Discord (/settings set): each with its own number,
+; applied once, checked against the same limits as the macro's own pages.
+RemoteSettings(js) {
+    global RemoteRebuild
+    top := Cfg["ApiSeq"], changed := false, pos := 1
+    while (pos := RegExMatch(js, '\{"seq":(\d+),"key":"([a-z-]+)","value":"((?:[^"\\]|\\.)*)"\}', &m, pos)) {
+        pos += m.Len
+        seq := Integer(m[1])
+        if (seq <= Cfg["ApiSeq"])
+            continue
+        top := Max(top, seq)
+        what := RemoteSet(m[2], JsonUnescape(m[3]))
+        try LogEvent(what)
+        changed := changed || InStr(what, "Changed from Discord")
+    }
+    if (top != Cfg["ApiSeq"])
+        Cfg["ApiSeq"] := top, Save("ApiSeq")
+    if changed {
+        RemoteRebuild := true
+        SetTimer(RemoteRebuildWhenIdle, -200)
+    }
+}
+
+; One setting from Discord: set it (as its page would) and say what happened.
+RemoteSet(name, v) {
+    global CurRodName, CurRodLib
+    spec := RemoteSpec()
+    if !spec.Has(name)
+        return "Ignored a setting from Discord FISCHXR doesn't know: " name
+    s := spec[name], key := s.key
+    if (s.HasOwnProp("plus") && !IsPlus())
+        return "Ignored " name " from Discord: it's a Plus setting"
+    switch s.kind {
+        case "num":
+            if !IsNumber(v)
+                return "Ignored " name " from Discord: " v " isn't a number"
+            n := NumSpec[key], val := Clamp(Round(v), n.min, n.max)
+        case "bool":
+            if !RegExMatch(v, "i)^(on|off|true|false|1|0|yes|no)$")
+                return "Ignored " name " from Discord: use on or off"
+            val := RegExMatch(v, "i)^(on|true|1|yes)$") ? 1 : 0
+        case "choice":
+            val := "", hit := false
+            for o in s.opts
+                if (o[1] = v || o[2] = v)
+                    val := o[2], hit := true
+            if !hit
+                return "Ignored " name " from Discord: " v " isn't one of its choices"
+        case "hex":
+            if RegExMatch(v, "i)^(none|off|)$")
+                val := ""
+            else if RegExMatch(v, "i)^#?([0-9A-F]{6})$", &h)
+                val := StrUpper(h[1])
+            else
+                return "Ignored " name " from Discord: use a colour code like FF4FD8, or none"
+        case "rod":
+            val := RegExMatch(v, "i)^(auto|none|off|)$") ? "" : FixRodName(v).name
+            CurRodName := val, CurRodLib := val != "" ? RodLibFor(val) : ""
+            try UI.rodEdit.Value := val
+    }
+    Cfg[key] := val
+    Save(key)
+    if (SubStr(key, 1, 4) = "Plus")
+        try PlusChanged(key)
+    return "Changed from Discord: " name " is now " (val = "" ? "off" : val = 1 && s.kind = "bool" ? "on" : val = 0 && s.kind = "bool" ? "off" : val)
+}
+
+; A change from Discord shows in the window once fishing isn't using it.
+RemoteRebuildWhenIdle() {
+    global RemoteRebuild
+    if !(RemoteRebuild && UiReady && IsObject(MainGui))
+        return
+    if (Running || AqManual)
+        return SetTimer(RemoteRebuildWhenIdle, -5000)
+    RemoteRebuild := false
+    RebuildGui(DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd) ? true : false)
+}
+
+; The macro's state, as the service keeps it.
+RemoteStateJson() {
+    vals := ""
+    for name, s in RemoteSpec() {
+        v := Cfg[s.key]
+        if (s.kind = "bool")
+            v := v ? "on" : "off"
+        else if (s.kind = "choice")
+            for o in s.opts
+                if (o[2] = v)
+                    v := o[1]
+        vals .= (vals = "" ? "" : ",") JsonStr(name) ":" JsonStr(v = "" ? "off" : v)
+    }
+    return '{"version":' JsonStr(APP_VER) ',"fishing":' (Running ? "true" : "false") ',"phase":' JsonStr(Phase.title)
+        . ',"rod":' JsonStr(CurRodName) ',"values":{' vals '}}'
+}
+
+JsonUnescape(s) {
+    out := "", i := 1
+    while (i <= StrLen(s)) {
+        c := SubStr(s, i, 1)
+        if (c = "\" && i < StrLen(s)) {
+            n := SubStr(s, i + 1, 1)
+            if (n = "u" && RegExMatch(SubStr(s, i + 2, 4), "^[0-9A-Fa-f]{4}$"))
+                out .= Chr(Integer("0x" SubStr(s, i + 2, 4))), i += 6
+            else
+                out .= (n = "n" ? "`n" : n = "t" ? "`t" : n = "r" ? "`r" : n), i += 2
+        } else
+            out .= c, i += 1
+    }
+    return out
 }
 
