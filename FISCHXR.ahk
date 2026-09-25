@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.1.0"
+APP_VER := "5.1.1"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -138,7 +138,7 @@ Defaults := Map(
     "HookSummary", 60, "HookShots", 1,
     "AutoReconnect", 0, "RejoinLink", "roblox://experiences/start?placeId=16732694052", "RejoinWait", 40,
     "AuthMode", "", "AuthTok", "", "AuthExp", 0, "AuthName", "", "AuthId", "", "RodManual", "",
-    "AuthScope", "", "GuildId", "", "PlusCached", 0, "PlusAccess", "", "ApiUrl", "", "ApiSeq", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium",
+    "AuthScope", "", "GuildId", "", "PlusCached", 0, "PlusAccess", "", "ApiUrl", "", "ApiSeq", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium", "PlusGlowRun", 1,
     "PlusTheme", "", "PlusAccent", "", "PlusQuickRecast", 0, "PlusRate", 1, "PlusPanelCorner", "TR",
     "RejoinMax", 4, "RejoinResume", 1, "ReelSnaps", 1,
     "MiniHud", 1, "UpdateUrl", UPDATE_URL, "AutoUpdate", 1, "LastVersion", ""
@@ -3521,9 +3521,9 @@ class Hud {
             this.g.Hide()
     }
     static Destroy() {
-        if this.g
-            try this.g.Destroy()
-        this.g := 0
+        was := this.g, this.g := 0                 ; (the reference goes first, as above)
+        if was
+            try was.Destroy()
     }
     static Visible() => this.g && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd)
     static Update() {
@@ -3647,8 +3647,11 @@ class Flyout {
     static g := 0, rows := Map(), start := 0, ind := 0, isOpen := false, away := 0, watcher := 0, placed := "", acct := 0
 
     static Build() {
-        if this.g
-            try this.g.Destroy()
+        ; (the reference goes first: the hover timer can run while the old
+        ; window is being destroyed, and must not find it half gone)
+        was := this.g, this.g := 0
+        if was
+            try was.Destroy()
         this.rows := Map(), this.isOpen := false, this.placed := ""
         g := Gui("-Caption +ToolWindow +Owner" MainGui.Hwnd (Cfg["OnTop"] ? " +AlwaysOnTop" : ""))
         g.BackColor := Pal.strip, g.MarginX := 0, g.MarginY := 0
@@ -4558,11 +4561,14 @@ ChildAtCursor() {
     pt := Buffer(8, 0)
     DllCall("GetCursorPos", "Ptr", pt)
     top := DllCall("WindowFromPoint", "Int64", NumGet(pt, 0, "Int64"), "Ptr")
-    for pop in [Flyout.g, Login.g]
-        if (pop && (top = pop.Hwnd || DllCall("GetAncestor", "Ptr", top, "UInt", 1, "Ptr") = pop.Hwnd)) {
-            DllCall("ScreenToClient", "Ptr", pop.Hwnd, "Ptr", pt)
-            return ChildAt(pop.Hwnd, NumGet(pt, 0, "Int"), NumGet(pt, 4, "Int"))
+    for pop in [Flyout.g, Login.g] {
+        ph := 0
+        try ph := pop ? pop.Hwnd : 0               ; (a window being rebuilt has none for a moment)
+        if (ph && (top = ph || DllCall("GetAncestor", "Ptr", top, "UInt", 1, "Ptr") = ph)) {
+            DllCall("ScreenToClient", "Ptr", ph, "Ptr", pt)
+            return ChildAt(ph, NumGet(pt, 0, "Int"), NumGet(pt, 4, "Int"))
         }
+    }
     if (top != MainGui.Hwnd && DllCall("GetAncestor", "Ptr", top, "UInt", 1, "Ptr") != MainGui.Hwnd)
         return 0
     DllCall("ScreenToClient", "Ptr", MainGui.Hwnd, "Ptr", pt)
@@ -8767,6 +8773,10 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.1.1
+- Plus: the glowing border now has a running light, two bright streaks that race around the outside. It's on by default, and you can switch it off on the Plus tab (or with /settings set plus-glow-run off).
+- Plus: your catches per hour always show on the fishing panel.
+
 5.1.0
 - Change your macro's settings right from Discord! Use /settings set in the FISCHXR server and your macro picks it up within a couple of minutes. /settings show and /status tell you how it's doing.
 - The FISCHXR team can now give or take Plus, and keep an account from signing in.
@@ -10508,7 +10518,7 @@ LockAction() {
 ; A Plus setting changed.
 PlusChanged(key) {
     switch key {
-        case "PlusGlow", "PlusGlowColor", "PlusGlowStyle":
+        case "PlusGlow", "PlusGlowColor", "PlusGlowStyle", "PlusGlowRun":
             PlusGlow.Refresh()
         case "PlusTheme":
             SetTimer(RebuildGui, -1)
@@ -10562,36 +10572,43 @@ BuildPlus() {
         , ["Green", "Green"], ["Gold", "Gold"], ["Red", "Red"], ["White", "White"]], "The colour of the glow.")
     Choice("Plus", 2, "PlusGlowStyle", "Glow", [["Soft", "Soft"], ["Medium", "Medium"], ["Strong", "Strong"], ["Pulsing", "Pulsing"]]
         , "How bright the glow is, or a slow pulse.")
-    Choice("Plus", 3, "PlusTheme", "Plus theme", [["", "Off (your theme)"], ["Sakura", "Sakura"], ["Midnight", "Midnight"]
+    Toggle("Plus", 3, "PlusGlowRun", "Running light", "Two bright streaks race around the border.")
+    Choice("Plus", 4, "PlusTheme", "Plus theme", [["", "Off (your theme)"], ["Sakura", "Sakura"], ["Midnight", "Midnight"]
         , ["Emerald", "Emerald"], ["Sunset", "Sunset"]], "Colour themes only Plus has. Off keeps the theme from Settings.")
-    EditRow("Plus", 4, "PlusAccent", "Custom accent", "Your own accent colour, as a code like FF4FD8, then Enter. Leave it empty for the theme's own.")
-    Toggle("Plus", 5, "PlusQuickRecast", "Quick recast", "Casts again 0.3 s after a catch instead of waiting a full second.")
-    Toggle("Plus", 6, "PlusRate", "Catch rate on the panel", "Shows your catches per hour on the small fishing panel.")
+    EditRow("Plus", 5, "PlusAccent", "Custom accent", "Your own accent colour, as a code like FF4FD8, then Enter. Leave it empty for the theme's own.")
+    Toggle("Plus", 6, "PlusQuickRecast", "Quick recast", "Casts again 0.3 s after a catch instead of waiting a full second.")
     Choice("Plus", 7, "PlusPanelCorner", "Fishing panel corner", [["TR", "Top right"], ["TL", "Top left"], ["BR", "Bottom right"], ["BL", "Bottom left"]]
-        , "Where the small panel sits while you fish.")
+        , "Where the small panel sits while you fish (it also shows your catches per hour).")
 }
 
 ;------------------------------------------------------------------------------
 ; The glowing border: a click-through window just behind the main one, a
 ; little bigger, holding a soft ring in the chosen colour. It follows the
 ; window and hides with it (while fishing, on the sign-in screen, minimized).
+; Running light: two bright streaks race around the outside of the ring. The
+; still ring is drawn once; each frame copies it and draws the streaks on top.
 ;------------------------------------------------------------------------------
 class PlusGlow {
-    static g := 0, dc := 0, hbm := 0, old := 0, key := "", ticker := 0, pulser := 0, hooked := false, alpha := 255
+    static g := 0, key := "", ticker := 0, pulser := 0, runner := 0, hooked := false, alpha := 255, frames := 0
+    ; the still ring (base) and the picture shown (out), each a 32-bit DIB
+    static bdc := 0, bhbm := 0, bold := 0, dc := 0, hbm := 0, old := 0, gpOut := 0, grOut := 0
+    static W2 := 0, H2 := 0, gw := 0
 
     static Want() => IsPlus() && Cfg["PlusGlow"] && IsSet(MainGui) && IsObject(MainGui) && UiReady && !Login.g
         && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd) && !DllCall("IsIconic", "Ptr", MainGui.Hwnd)
+    static Running() => Cfg["PlusGlowRun"] && !Cfg["ReduceMotion"]
 
     ; Settings or Plus changed: redraw, and watch the window.
     static Refresh() {
         if !this.hooked
             OnMessage(0x47, PlusGlowMoved), this.hooked := true      ; WM_WINDOWPOSCHANGED
         if !this.ticker
-            this.ticker := ObjBindMethod(this, "Sync"), this.pulser := ObjBindMethod(this, "Pulse")
+            this.ticker := ObjBindMethod(this, "Sync"), this.pulser := ObjBindMethod(this, "Pulse"), this.runner := ObjBindMethod(this, "Frame")
         this.key := ""
         on := IsPlus() && Cfg["PlusGlow"]
         SetTimer(this.ticker, on ? 300 : 0)
         SetTimer(this.pulser, on && Cfg["PlusGlowStyle"] = "Pulsing" ? 40 : 0)
+        SetTimer(this.runner, on && this.Running() ? 40 : 0)
         this.alpha := 255
         try SetDwmBorder(MainGui.Hwnd, on ? PlusGlowColor() : "")
         this.Sync()
@@ -10610,23 +10627,33 @@ class PlusGlow {
         WinGetPos(&x, &y, &w, &h, "ahk_id " MainGui.Hwnd)
         G := Round(16 * A_ScreenDPI / 96), W2 := w + 2 * G, H2 := h + 2 * G
         k := W2 "x" H2 "|" PlusGlowColor() "|" Cfg["PlusGlowStyle"]
-        if (k != this.key)
+        if (k != this.key) {
             this.Draw(W2, H2, G), this.key := k
-        this.Blend(x - G, y - G, W2, H2)
+            if this.Running()
+                this.Streaks()
+        }
+        this.Blend(x - G, y - G)
         ; just behind the main window
         DllCall("SetWindowPos", "Ptr", this.g.Hwnd, "Ptr", MainGui.Hwnd, "Int", x - G, "Int", y - G, "Int", W2, "Int", H2, "UInt", 0x10 | 0x40)
     }
 
-    static Draw(W2, H2, G) {
-        this.Free()
+    static NewDib(W2, H2, &bits) {
         bi := Buffer(40, 0)
         NumPut("UInt", 40, bi, 0), NumPut("Int", W2, bi, 4), NumPut("Int", -H2, bi, 8), NumPut("UShort", 1, bi, 12), NumPut("UShort", 32, bi, 14)
-        this.dc := DllCall("CreateCompatibleDC", "Ptr", 0, "Ptr")
-        this.hbm := DllCall("CreateDIBSection", "Ptr", this.dc, "Ptr", bi, "UInt", 0, "Ptr*", &bits := 0, "Ptr", 0, "UInt", 0, "Ptr")
-        this.old := DllCall("SelectObject", "Ptr", this.dc, "Ptr", this.hbm, "Ptr")
+        dc := DllCall("CreateCompatibleDC", "Ptr", 0, "Ptr")
+        hbm := DllCall("CreateDIBSection", "Ptr", dc, "Ptr", bi, "UInt", 0, "Ptr*", &bits := 0, "Ptr", 0, "UInt", 0, "Ptr")
+        return {dc: dc, hbm: hbm, old: DllCall("SelectObject", "Ptr", dc, "Ptr", hbm, "Ptr")}
+    }
+
+    ; The still ring, into base; then out is set up as a copy of it.
+    static Draw(W2, H2, G) {
+        this.Free()
         if !Gdip.Start()
             return
-        DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", W2, "Int", H2, "Int", W2 * 4, "Int", 0xE200B, "Ptr", bits, "Ptr*", &bmp := 0)
+        this.W2 := W2, this.H2 := H2, this.gw := G
+        b := this.NewDib(W2, H2, &bbits), o := this.NewDib(W2, H2, &obits)
+        this.bdc := b.dc, this.bhbm := b.hbm, this.bold := b.old, this.dc := o.dc, this.hbm := o.hbm, this.old := o.old
+        DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", W2, "Int", H2, "Int", W2 * 4, "Int", 0xE200B, "Ptr", bbits, "Ptr*", &bmp := 0)
         DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", bmp, "Ptr*", &gr := 0)
         DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", gr, "Int", 4)
         rgb := Integer("0x" PlusGlowColor())
@@ -10644,17 +10671,88 @@ class PlusGlow {
         DllCall("gdiplus\GdipDrawPath", "Ptr", gr, "Ptr", pen, "Ptr", p)
         DllCall("gdiplus\GdipDeletePen", "Ptr", pen), DllCall("gdiplus\GdipDeletePath", "Ptr", p)
         DllCall("gdiplus\GdipDeleteGraphics", "Ptr", gr), DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
+        ; out: a copy of the ring, with its own drawing surface for the streaks
+        DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", W2, "Int", H2, "Int", W2 * 4, "Int", 0xE200B, "Ptr", obits, "Ptr*", &ob := 0)
+        DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", ob, "Ptr*", &og := 0)
+        DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", og, "Int", 4)
+        this.gpOut := ob, this.grOut := og
+        DllCall("BitBlt", "Ptr", this.dc, "Int", 0, "Int", 0, "Int", W2, "Int", H2, "Ptr", this.bdc, "Int", 0, "Int", 0, "UInt", 0x00CC0020)
     }
 
-    static Blend(x := "", y := "", w := 0, h := 0) {
+    ; A point at distance s along the outside of the ring (a rounded
+    ; rectangle a third of the glow out from the window's edge).
+    static PerimPoint(s, &px, &py) {
+        off := Round(this.gw * 0.35), x0 := this.gw - off, y0 := this.gw - off
+        w := this.W2 - 2 * x0, h := this.H2 - 2 * y0, r := 8 + off
+        Lh := w - 2 * r, Lv := h - 2 * r, arc := 3.14159265 * r / 2, P := 2 * Lh + 2 * Lv + 4 * arc
+        s := Mod(Mod(s, P) + P, P)
+        segs := [[Lh, "top"], [arc, "tr"], [Lv, "right"], [arc, "br"], [Lh, "bottom"], [arc, "bl"], [Lv, "left"], [arc, "tl"]]
+        for sg in segs {
+            if (s > sg[1]) {
+                s -= sg[1]
+                continue
+            }
+            t := s
+            switch sg[2] {
+                case "top":    px := x0 + r + t, py := y0
+                case "right":  px := x0 + w, py := y0 + r + t
+                case "bottom": px := x0 + w - r - t, py := y0 + h
+                case "left":   px := x0, py := y0 + h - r - t
+                default:
+                    ; a quarter circle: which corner, and where along it
+                    cx := InStr(sg[2], "r") = 2 ? x0 + w - r : x0 + r, cy := SubStr(sg[2], 1, 1) = "t" ? y0 + r : y0 + h - r
+                    a0 := Map("tr", -90, "br", 0, "bl", 90, "tl", 180)[sg[2]], ang := (a0 + 90 * t / arc) * 3.14159265 / 180
+                    px := cx + r * Cos(ang), py := cy + r * Sin(ang)
+            }
+            return P
+        }
+        px := x0 + r, py := y0
+        return P
+    }
+
+    ; The picture with the two streaks where they are now.
+    static Streaks() {
+        if !(this.grOut && this.dc)
+            return
+        DllCall("BitBlt", "Ptr", this.dc, "Int", 0, "Int", 0, "Int", this.W2, "Int", this.H2, "Ptr", this.bdc, "Int", 0, "Int", 0, "UInt", 0x00CC0020)
+        P := this.PerimPoint(0, &x, &y)
+        head0 := Mod(A_TickCount, 3000) / 3000 * P, L := P * 0.16, K := 14, col := PlusGlowColor(), off := Round(this.gw * 0.35)
+        for head in [head0, head0 + P / 2] {
+            loop K {
+                t0 := (A_Index - 1) / K, t1 := A_Index / K
+                this.PerimPoint(head - L + L * t0, &xa, &ya), this.PerimPoint(head - L + L * t1, &xb, &yb)
+                ; a soft halo, then the bright core (white at the head)
+                for layer in [[off * 2.2, Round(70 * t1 ** 2), col], [2 + off * t1 * 0.9, Round(255 * t1 ** 1.5), Mix(col, "FFFFFF", 0.75 * t1 ** 3)]] {
+                    DllCall("gdiplus\GdipCreatePen1", "UInt", (layer[2] << 24) | Integer("0x" layer[3]), "Float", layer[1], "Int", 2, "Ptr*", &pen := 0)
+                    ; (square ends, so the pieces join without doubling up; the head is rounded)
+                    DllCall("gdiplus\GdipSetPenStartCap", "Ptr", pen, "Int", 0), DllCall("gdiplus\GdipSetPenEndCap", "Ptr", pen, "Int", A_Index = K ? 2 : 0)
+                    DllCall("gdiplus\GdipDrawLine", "Ptr", this.grOut, "Ptr", pen, "Float", xa, "Float", ya, "Float", xb, "Float", yb)
+                    DllCall("gdiplus\GdipDeletePen", "Ptr", pen)
+                }
+            }
+        }
+        this.frames++
+    }
+
+    ; Running light: a new frame, 25 times a second while it shows.
+    static Frame() {
+        if !(this.g && this.dc && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd))
+            return
+        this.Streaks()
+        this.Blend()
+    }
+
+    ; Puts the picture on screen (and at x, y when given), at the glow's strength.
+    static Blend(x := "", y := "") {
         if !(this.g && this.dc)
             return
         bl := Buffer(4, 0)
         NumPut("UChar", 0, bl, 0), NumPut("UChar", 0, bl, 1), NumPut("UChar", this.alpha, bl, 2), NumPut("UChar", 1, bl, 3)
-        if (x = "")
-            return DllCall("UpdateLayeredWindow", "Ptr", this.g.Hwnd, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "UInt", 0, "Ptr", bl, "UInt", 2)
-        pt := Buffer(8), sz := Buffer(8), src := Buffer(8, 0)
-        NumPut("Int", x, "Int", y, pt), NumPut("Int", w, "Int", h, sz)
+        sz := Buffer(8), src := Buffer(8, 0)
+        NumPut("Int", this.W2, "Int", this.H2, sz)
+        pt := 0
+        if (x != "")
+            pt := Buffer(8), NumPut("Int", x, "Int", y, pt)
         DllCall("UpdateLayeredWindow", "Ptr", this.g.Hwnd, "Ptr", 0, "Ptr", pt, "Ptr", sz, "Ptr", this.dc, "Ptr", src, "UInt", 0, "Ptr", bl, "UInt", 2)
     }
 
@@ -10663,15 +10761,19 @@ class PlusGlow {
         if !(this.g && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd))
             return
         this.alpha := Round(120 + 135 * (0.5 + 0.5 * Sin(A_TickCount / 1000 * 3.5)))
-        this.Blend()
+        if !this.Running()                          ; (the running light shows it on its next frame)
+            this.Blend()
     }
 
     static Free() {
-        if this.dc {
-            DllCall("SelectObject", "Ptr", this.dc, "Ptr", this.old)
-            DllCall("DeleteObject", "Ptr", this.hbm), DllCall("DeleteDC", "Ptr", this.dc)
-        }
-        this.dc := 0, this.hbm := 0
+        if this.grOut
+            DllCall("gdiplus\GdipDeleteGraphics", "Ptr", this.grOut), DllCall("gdiplus\GdipDisposeImage", "Ptr", this.gpOut)
+        for d in [[this.dc, this.hbm, this.old], [this.bdc, this.bhbm, this.bold]]
+            if d[1] {
+                DllCall("SelectObject", "Ptr", d[1], "Ptr", d[3])
+                DllCall("DeleteObject", "Ptr", d[2]), DllCall("DeleteDC", "Ptr", d[1])
+            }
+        this.dc := 0, this.hbm := 0, this.bdc := 0, this.bhbm := 0, this.grOut := 0, this.gpOut := 0
     }
 }
 
@@ -10685,7 +10787,7 @@ PlusGlowMoved(wParam, lParam, msg, hwnd) {
 PlusGlowStop() {
     try OnMessage(0x47, PlusGlowMoved, 0)
     if PlusGlow.ticker
-        try SetTimer(PlusGlow.ticker, 0), SetTimer(PlusGlow.pulser, 0)
+        try SetTimer(PlusGlow.ticker, 0), SetTimer(PlusGlow.pulser, 0), SetTimer(PlusGlow.runner, 0)
     if PlusGlow.g
         try PlusGlow.g.Destroy()
     PlusGlow.g := 0
@@ -10741,6 +10843,7 @@ RemoteSpec() {
         "rod", {key: "RodManual", kind: "rod"},
         "plus-glow", {key: "PlusGlow", kind: "bool", plus: true},
         "plus-glow-color", {key: "PlusGlowColor", kind: "choice", plus: true, opts: [["Pink", "Pink"], ["Purple", "Purple"], ["Blue", "Blue"], ["Cyan", "Cyan"], ["Green", "Green"], ["Gold", "Gold"], ["Red", "Red"], ["White", "White"]]},
+        "plus-glow-run", {key: "PlusGlowRun", kind: "bool", plus: true},
         "plus-glow-style", {key: "PlusGlowStyle", kind: "choice", plus: true, opts: [["Soft", "Soft"], ["Medium", "Medium"], ["Strong", "Strong"], ["Pulsing", "Pulsing"]]},
         "plus-theme", {key: "PlusTheme", kind: "choice", plus: true, opts: [["off", ""], ["Sakura", "Sakura"], ["Midnight", "Midnight"], ["Emerald", "Emerald"], ["Sunset", "Sunset"]]},
         "plus-accent", {key: "PlusAccent", kind: "hex", plus: true},

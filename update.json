@@ -1,7 +1,7 @@
 {
-  "version": "5.1.0",
+  "version": "5.1.1",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "50bcd022ec367594604f7e5665fd50c7ab2d49fc7c60b7cf5dda11059ac01024",
-  "notes": "Change your macro's settings right from Discord with /settings, and check on it with /status.",
+  "sha256": "3d3bd3312f408526ad6fce464ba15455cb222fc7859a912bac2e285da3bd5e52",
+  "notes": "Plus: a running light races around the glowing border (switch it off on the Plus tab).",
   "api": "https://fischxr-api.exoartar.workers.dev/"
 }
