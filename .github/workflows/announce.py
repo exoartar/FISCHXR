@@ -1,12 +1,3 @@
-"""Posts a new FISCHXR release to a Discord channel (through a webhook).
-
-Run by .github/workflows/announce-update.yml when update.json changes. It posts
-only when the version number went up (or always, when the workflow is started
-by hand from the Actions tab), with that version's notes taken from the
-What's new list inside FISCHXR.ahk (falling back to the notes in update.json).
-The webhook address comes from the repository secret DISCORD_WEBHOOK; it is
-never stored in the repository or in the macro.
-"""
 import datetime, json, os, subprocess, sys, time, urllib.error, urllib.request
 
 def version_key(v):
@@ -25,7 +16,7 @@ def notes_for(version, script="FISCHXR.ahk"):
             continue
         if s.startswith("- "):
             out.append(s)
-        elif out or s:            # the first blank or non-note line ends it
+        elif out or s:            
             break
     return out
 
@@ -39,7 +30,7 @@ def main():
         old = json.loads(subprocess.check_output(["git", "show", "HEAD~1:update.json"], stderr=subprocess.DEVNULL))
     except Exception:
         old = {}
-    # started by hand (Actions -> Run workflow): always post the current version
+    
     forced = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
     if not forced and old.get("version") and version_key(ver) <= version_key(old["version"]):
         print(f"Version {ver} isn't newer than {old['version']}; nothing to announce.")
@@ -48,27 +39,26 @@ def main():
     bullets = "\n".join("• " + n[2:] for n in notes) or "• Fixes and improvements all round."
     repo = os.environ.get("GITHUB_REPOSITORY", "exoartar/FISCHXR")
     page = f"https://github.com/{repo}"
-    text = (f"A new update just landed. Here's what's new:\n\n{bullets}\n\n"
-            f"**Getting it:** FISCHXR updates itself the next time you open it. "
-            f"New here? [Download it from GitHub]({page}).")
+    text = (f"Here's what's new:\n\n{bullets}\n\n"
+            f"**Getting it:** The Macro will prompt an Update Window."
+            f"New here? [Download the Macro from GitHub!]({page}).")
     if len(text) > 4000:
         text = text[:3990] + "…"
     embed = {
-        "title": f"🎣 FISCHXR {ver} is out!",
+        "title": f"FISCHXR {ver} Has Released!",
         "url": page,
         "description": text,
         "color": 0x5865F2,
-        "footer": {"text": "Tight lines! · FISCHXR"},
+        "footer": {"text": "Update! · FISCHXR"},
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     payload = {"username": "FISCHXR", "embeds": [embed], "allowed_mentions": {"parse": []}}
     role = os.environ.get("DISCORD_ROLE", "").strip()
-    if role:                        # optional: ping an "updates" role
+    if role:                        
         payload["content"] = f"<@&{role}>"
         payload["allowed_mentions"] = {"roles": [role]}
     body = json.dumps(payload).encode()
-    # Discord answers 429 when a webhook posts too fast, saying how long to
-    # wait: wait that long and try again (a few times).
+   
     for attempt in range(4):
         req = urllib.request.Request(hook, data=body, method="POST",
                                      headers={"Content-Type": "application/json", "User-Agent": "FISCHXR-announcer (github actions)"})
