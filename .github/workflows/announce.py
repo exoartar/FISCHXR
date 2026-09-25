@@ -40,7 +40,6 @@ def main():
     repo = os.environ.get("GITHUB_REPOSITORY", "exoartar/FISCHXR")
     page = f"https://github.com/{repo}"
     text = (f"Here's what's new:\n\n{bullets}\n\n"
-            f"**Getting it:** The Macro will prompt an Update Window."
             f"New here? [Download the Macro from GitHub!]({page}).")
     if len(text) > 4000:
         text = text[:3990] + "…"
