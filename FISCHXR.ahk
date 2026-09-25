@@ -8740,137 +8740,130 @@ ChangelogText() {
     return "
 (
 4.9.6
-- Splitbranch Twig: its reel waits for a click after a fish is chosen ("Click & Hold Anywhere!"). The macro now gives it one straight away, doesn't mistake the frozen bar for scenery in the first 3 seconds, and keeps resuming the reel while it's up instead of giving up and casting over it.
-- Splitbranch Twig: the choice timer is followed all the way down (it turns yellow, orange, then red).
+- Splitbranch Twig catches are way more reliable. After you pick a fish, its reel waits for a click before it starts ("Click & Hold Anywhere!"). FISCHXR now gives it that click right away and won't give up on the reel while it warms up.
+- The Splitbranch choice timer is followed all the way down, even as it turns yellow, orange and red.
 
 4.9.5
-- Splitbranch Twig: the reel is no longer taken while the two fish are still on offer (its bar is frozen until one is picked). The left fish is clicked once the fish have floated up beside you, then the right one, then just above the middle, if the choice is still showing.
-- Splitbranch Twig: after a fish is chosen, the mouse reels from open ground below you instead of over the chosen fish, which took the clicks meant for the reel. A bar that doesn't answer right after a choice is given another go instead of being cast over.
+- Splitbranch Twig: FISCHXR now waits for the two-fish choice to finish before it starts reeling, and tries the left fish, then the right, if a click doesn't land.
+- After a choice, FISCHXR reels with the mouse clear of the fish you picked, so the clicks actually reach the reel.
 
 4.9.4
-- The rod is read from the hotbar before fishing starts (and again whenever it's forgotten), so the right reel is expected from the first cast.
-- Noiseform: the fish is found far more reliably, including at night and when it's outside the bar: it's read as a thin dark line against what's beside it, on its own, rather than from where the bar was found.
-- Splitbranch Twig: when it offers two fish ("Choose one!"), shaking stops and the left fish is picked.
+- FISCHXR now checks which rod you're holding before the first cast, so it knows which reel to expect right from the start.
+- Noiseform got a big upgrade: the fish is spotted much more reliably, especially at night and when it's outside the bar.
+- New rod: Splitbranch Twig, "Choose one!" pick included.
 
 4.9.3
-- Fishing corrects itself. After two reels in a row go badly, what the session has learned (reel looks, the rod's learned bar movement, the rod's name) is dropped and found again. If a reel is clearly up but the rod's reel style doesn't fit it, every style is tried and the one that fits is used. If nothing is cast or reeled for two minutes, the macro lets go, starts fresh and re-equips the rod.
-- A job that can't finish no longer stops fishing: it's tried again in 10 minutes. (Guests with the aquarium or Sovereign on could get stuck without casting.)
-- The small fishing panel is no longer left see-through.
-- The taskbar and tray use the new FISCHXR logo.
+- FISCHXR now fixes itself when fishing goes wrong. Two bad reels in a row? It relearns the reel from scratch. A reel it doesn't recognize? It tries every style until one fits. Stuck for two minutes? It resets and re-equips your rod.
+- A job that can't finish (like the aquarium) no longer stops you fishing. It simply tries again in 10 minutes.
+- The small fishing panel is solid again instead of see-through.
+- The new FISCHXR logo is now on your taskbar and tray.
 
 4.9.2
-- The "Sign in to use" panel on locked pages sits on the page instead of under the sidebar.
+- The "Sign in to use" panel no longer hides under the sidebar.
 
 4.9.1
-- The sign-in screen's buttons work (the background was catching every click).
-- Totems are open to guests.
-- Rods page: type your rod's name (Enter or Use); small mistakes are fixed ("inions air" is Pinion's Aria). It stays until you press Auto.
-- Rod names read from the hotbar are corrected the same way.
+- The sign-in buttons work properly now.
+- Totems are free for everyone, guests included.
+- You can type your rod's name on the Rods page, and typos are fine: "inions air" becomes Pinion's Aria.
+- Rod names read from your hotbar get the same auto-correct.
 
 4.9.0
-- A new sign-in screen, drawn to the FISCHXR design: the new logo, the Inter typeface (built in), a glowing Discord button that brightens when you point at it, and the minimize and close buttons in the corner.
+- A brand-new sign-in screen: the new logo, clean new type, and a glowing Discord button.
 
 4.8.1
-- The sign-in screen is the whole program until you choose: the main window stays hidden and nothing starts until you log in with Discord or continue as a guest. Signing out returns to it.
+- The sign-in screen now comes first. Pick Discord or guest and you're in.
 
 4.8.0
-- Sign in with Discord: FISCHXR asks at start (or continue as a guest). Signing in opens the FISCHXR Discord server.
-- Guests can fish; Discord alerts, auto-reconnect, the aquarium, totems and Sovereign need a Discord sign-in.
-- The sign-in is remembered (encrypted for your Windows account) and shown in Settings, where you can sign out.
+- Sign in with Discord! Signing in unlocks everything and brings you into the FISCHXR Discord server.
+- Guests can still fish. Discord alerts, auto-reconnect, the aquarium, totems and Sovereign need a sign-in.
+- Your sign-in is remembered securely, and you can sign out any time.
 
 4.7.0
-- Everything moves smoothly: one animation engine eases every movement in the background, so nothing makes the window wait.
-- Switches: on/off settings are sliding switches with a soft-shadowed knob.
-- Depth: soft shadows where the sidebar and status line meet the page; the opened sidebar floats with rounded corners and a shadow.
-- Motion: buttons fade on hover, pages glide in, the status fades in when it changes, counters flash as they rise, the window and dialogs fade in, the fishing panel glides in, and the status dot breathes while fishing. All of it is off with Reduce motion.
+- Everything feels smoother: sliding switches, pages that glide in, buttons that fade on hover, and a status dot that breathes while you fish.
+- Soft shadows give the window more depth.
+- Prefer less movement? Turn on Reduce motion.
 
 4.6.1
-- The sidebar is quick again. Its animations run in the background instead of making the window wait, it's only repositioned when the window has moved, it opens once the mouse rests on it (not when passing over), and switching tabs only repaints what changed.
+- The sidebar is snappy again.
 
 4.6.0
-- New look: the sidebar is a narrow strip of icons that opens to the full sidebar when the mouse is on it. The window is narrower to match.
-- More movement: the sidebar opens and shuts smoothly, the active tab's mark slides between tabs, dialogs fade in, and the status dot breathes while fishing (all off with Reduce motion).
-- What's new scrolls in a box of fixed size.
-- Apollo's Sunshot is supported (its charge meter fills on its own as the bar is steered).
-- All rods: the bar is followed as it changes size during a reel. Before, a bar that grew or shrank a lot could be taken for scenery and the reel ended early.
+- A fresh look: the sidebar is now a slim strip of icons that opens when you hover over it.
+- New rod: Apollo's Sunshot.
+- Bars that grow or shrink mid-reel are followed properly instead of ending the reel early.
+- What's new now scrolls.
 
 4.5.3
-- All rods: with the fish near either end, the bar is held against that end instead of bouncing off it.
-- Verdant Oath: the bar is no longer lost at either end of the reel (a block partly out of view is still read), or during the red flash.
+- When the fish hugs either end, the bar now holds it there instead of bouncing off.
+- Verdant Oath keeps track of the bar at both ends and through the red flash.
 
 4.5.2
-- Verdant Oath: the reel is read by its shape: the two brown blocks give the bar, the gap between them is the green zone, and the grey fish is found above and below them. The fish is aimed at the middle of the zone.
+- Verdant Oath now aims the fish right at the middle of the green zone.
 
 4.5.1
-- Requiem: no shake inputs once its reel appears, and inputs at least 200 ms apart (Requiem lost the fish to fast inputs).
-- All rods: no shake input on a frame where a reel is showing.
+- Requiem: FISCHXR goes easy on the inputs, so the line doesn't snap.
 
 4.5.0
-- Requiem is supported: its teal bar and dark fish are read by their own shape, and the mouse is never pressed or released faster than every 120 ms, since fast inputs snap Requiem's line.
+- New rod: Requiem.
 
 4.4.9
-- Pinion's Aria without a skin: the bright red bar is read (it was taken for the reel ending), and other cyan things nearby are no longer taken for the fish.
-- All rods: steadier. A fish reading far from where the fish just was is ignored unless the next one agrees, and with the fish well inside the bar the bar is held still instead of chasing the exact centre.
+- Pinion's Aria without a skin: the bright red bar is recognized.
+- Steadier steering for every rod: no more lurching after a bad reading, and the bar stays calm while the fish is safely inside.
 
 4.4.8
-- Pinion's Aria without a skin now works: its pale tube, pastel or red bar and cyan-topped fish are read by their own shape.
-- Pinion's Aria (both looks): the bar is followed as it widens with caught notes and narrows with missed ones, instead of being lost.
-- Pinion's Aria: the splash at the start of a reel is no longer taken for falling notes.
+- Pinion's Aria without a skin now works.
+- Pinion's Aria's bar is followed as it grows and shrinks with the notes.
 
 4.4.7
-- Pinion's Aria notes: the whole screen above the bar is watched, so every note is followed from where it appears, about a second before it lands, and where and when it will land is known.
+- Pinion's Aria: notes are spotted about a second before they land, so the bar is ready for them.
 
 4.4.6
-- Pinion's Aria notes: seen about a second before they land (was a fifth of a second). The bar keeps the fish and leans toward the note, then leaves just in time to catch it, covering both when they fit.
-- Pinion's Aria bar: its width is taken from recent readings and held closely, so its position is steadier.
+- Pinion's Aria: the bar keeps the fish and still heads over to catch notes in time.
 
 4.4.5
-- Noiseform and Pinion's Aria: a reel no longer ends early while it's still up (their reels were being checked for an outline they don't have).
-- A Noiseform or Pinion's Aria reel now needs both its bar and its fish to start, so dock planks and other straight lines aren't taken for a reel.
+- Noiseform and Pinion's Aria reels no longer end early, and dock planks aren't mistaken for a reel.
 
 4.4.4
-- Pinion's Aria: the bar is still found when it turns red (the fish outside it), so a reel is no longer taken for over, or not noticed at all, while the bar is red. The 水 symbol on the bar is no longer mistaken for the fish.
+- Pinion's Aria: the red bar is recognized, and the 水 symbol is no longer mistaken for the fish.
 
 4.4.3
-- Noiseform at night: the bar, fish and zones are read against the darker scene, the zone finder looks where the bar actually is, and a zone warning can't be overridden by a false one.
+- Noiseform works at night.
 
 4.4.2
-- After a Noiseform zone or a Pinion's Aria note, the bar goes straight back to the fish: switching what the bar aims at no longer upsets the fish's tracking.
+- After a Noiseform zone or a Pinion's Aria note, the bar heads straight back to the fish.
 
 4.4.1
-- Noiseform: zones no longer confuse where the bar is. A zone drawn over the bar hid one of its sides, and lines in the zone's picture were read as the bar, so the bar was pushed past the right zone.
+- Noiseform zones no longer throw off where the bar is.
 
 4.4.0
-- Noiseform zones: the warning that flashes in the middle of the screen is read (black triangle, green circle or grey square), and the bar is taken to the matching zone before the beam strikes.
+- Noiseform zones: FISCHXR reads the warning in the middle of the screen and moves the bar to the right zone before the beam hits.
 
 4.3.1
-- Noiseform: the reel is found wherever your reel area sits on it. If a reel still isn't recognized, the Detection log says why and a picture is saved to Snapshots\Unmatched.
+- Noiseform is found wherever your reel area sits. If a reel isn't recognized, the Detection log explains why.
 
 4.3.0
-- Pinion's Aria: the bar is read by its end caps, and it catches the falling notes while keeping the fish.
-- The rod name read from your hotbar now decides the reel style. A failed read keeps the last rod, so Noiseform no longer switches to Verdant Oath.
+- Pinion's Aria: the bar catches falling notes while keeping the fish.
+- FISCHXR reads the rod in your hotbar to pick the right reel style.
 
 4.2.3
-- Check for updates now shows its answer, and hover help shows on every page again.
+- Check for updates now tells you what it found, and hover help is back on every page.
 
 4.2.2
-- Updates now come from the FISCHXR page on GitHub: the macro checks when it opens and asks before installing.
+- Updates now come straight from the FISCHXR GitHub page. FISCHXR checks when it opens and asks before installing.
 
 4.2.1
-- Noiseform: the reel is read by its shape (the bar's black sides and the fish's black capsule), so it keeps working when the bar turns dark with the fish outside it.
+- Noiseform keeps working when its bar goes dark.
 
 4.2.0
-- Now called FISCHXR. Your settings carry over.
-- Reads the rod in your hotbar and uses its built-in reel style. Nothing about rods is learned or saved, so no more duplicate rods.
-- Verdant Oath: aims the fish at the green zone.
-- Pages slide in, the panel slides in from the edge, and the text is plainer.
+- We're FISCHXR now! Your settings carry over.
+- FISCHXR reads the rod in your hotbar and uses its reel style automatically.
+- Verdant Oath aims the fish at the green zone.
 
 4.1.0
-- New look: tabs down the side and a window about a third smaller.
-- While fishing, a small panel in the top-right corner shows what's happening, with a Stop button.
-- Simpler pages. Fine-tuning moved under Advanced: Rods, Live, Reel, Timing, More.
-- Sovereign recharge types into the inventory search the way a person does, and checks the text arrived before going on.
-- Updates: set an update link and the macro can update itself, checking each download's fingerprint.
+- A fresh new look, with tabs down the side and a smaller window.
+- A small panel in the corner shows what's happening while you fish, with a Stop button.
+- Simpler pages, with fine-tuning tucked away under Advanced.
+- Sovereign recharge types into the inventory search the way a person would.
+- FISCHXR can now update itself.
 )"
 }
 

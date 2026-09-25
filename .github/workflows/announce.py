@@ -7,7 +7,7 @@ What's new list inside FISCHXR.ahk (falling back to the notes in update.json).
 The webhook address comes from the repository secret DISCORD_WEBHOOK; it is
 never stored in the repository or in the macro.
 """
-import json, os, subprocess, sys, time, urllib.error, urllib.request
+import datetime, json, os, subprocess, sys, time, urllib.error, urllib.request
 
 def version_key(v):
     return [int(p) if p.isdigit() else 0 for p in str(v).split(".")]
@@ -45,14 +45,21 @@ def main():
         print(f"Version {ver} isn't newer than {old['version']}; nothing to announce.")
         return
     notes = notes_for(ver) or ([f"- {new['notes']}"] if new.get("notes") else [])
-    text = "\n".join(notes) or "A new version is out."
+    bullets = "\n".join("• " + n[2:] for n in notes) or "• Fixes and improvements all round."
     repo = os.environ.get("GITHUB_REPOSITORY", "exoartar/FISCHXR")
+    page = f"https://github.com/{repo}"
+    text = (f"A new update just landed. Here's what's new:\n\n{bullets}\n\n"
+            f"**Getting it:** FISCHXR updates itself the next time you open it. "
+            f"New here? [Download it from GitHub]({page}).")
+    if len(text) > 4000:
+        text = text[:3990] + "…"
     embed = {
-        "title": f"FISCHXR {ver} is out",
-        "url": f"https://github.com/{repo}",
-        "description": (text[:3900] + "\n...") if len(text) > 3900 else text,
+        "title": f"🎣 FISCHXR {ver} is out!",
+        "url": page,
+        "description": text,
         "color": 0x5865F2,
-        "footer": {"text": "Running FISCHXR updates itself; or download it from GitHub."},
+        "footer": {"text": "Tight lines! · FISCHXR"},
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     payload = {"username": "FISCHXR", "embeds": [embed], "allowed_mentions": {"parse": []}}
     role = os.environ.get("DISCORD_ROLE", "").strip()

@@ -1,6 +1,6 @@
 {
   "version": "4.9.6",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "83f5e50dadf61e17cf621bcdd4efcbb15da1639a1b0c97c5b4284bac3614e421",
-  "notes": "Splitbranch Twig: the reel gets the click it waits for, its frozen start isn't mistaken for scenery, and the choice timer is followed to the end."
+  "sha256": "ee87dd8be49487fa6666ad4cfc267d778eb376815814feec9675971f8f510b1d",
+  "notes": "Splitbranch Twig catches are way more reliable: FISCHXR now gives its reel the click it waits for after you pick a fish."
 }
