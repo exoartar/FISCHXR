@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.1.1"
+APP_VER := "5.1.6"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -138,12 +138,13 @@ Defaults := Map(
     "HookSummary", 60, "HookShots", 1,
     "AutoReconnect", 0, "RejoinLink", "roblox://experiences/start?placeId=16732694052", "RejoinWait", 40,
     "AuthMode", "", "AuthTok", "", "AuthExp", 0, "AuthName", "", "AuthId", "", "RodManual", "",
-    "AuthScope", "", "GuildId", "", "PlusCached", 0, "PlusAccess", "", "ApiUrl", "", "ApiSeq", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium", "PlusGlowRun", 1,
+    "AuthScope", "", "GuildId", "", "PlusCached", 0, "PlusAccess", "", "ApiUrl", "", "ApiSeq", 0,
+    "AuthUser", "", "AuthAvatar", "", "Blocked", 0, "BlockedReason", "", "LifeCasts", 0, "LifeReels", 0, "LifeSecs", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium", "PlusGlowRun", 1,
     "PlusTheme", "", "PlusAccent", "", "PlusQuickRecast", 0, "PlusRate", 1, "PlusPanelCorner", "TR",
     "RejoinMax", 4, "RejoinResume", 1, "ReelSnaps", 1,
     "MiniHud", 1, "UpdateUrl", UPDATE_URL, "AutoUpdate", 1, "LastVersion", ""
 )
-TextKeys := "|PlusAccess|ApiUrl|AuthScope|GuildId|PlusGlowColor|PlusGlowStyle|PlusTheme|PlusAccent|PlusPanelCorner|RodManual|AuthMode|AuthTok|AuthName|AuthId|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
+TextKeys := "|AuthUser|AuthAvatar|BlockedReason|PlusAccess|ApiUrl|AuthScope|GuildId|PlusGlowColor|PlusGlowStyle|PlusTheme|PlusAccent|PlusPanelCorner|RodManual|AuthMode|AuthTok|AuthName|AuthId|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
 BoolKeys := ["RodReequip", "UseNavKey", "AqAuto", "ColorSafe", "ReduceMotion", "Speak", "Sounds", "ShowSplash", "ShowHome", "OnTop", "ShowAreas"
     , "TotemAuto", "TotemSundial", "SovAuto", "HookStart", "HookErrors", "HookDisconnect", "HookJobs", "HookShots", "AutoReconnect", "RejoinResume", "ReelSnaps", "MiniHud", "AutoUpdate"]
 
@@ -209,7 +210,7 @@ MainGui := 0, UiReady := false
 UI := {}, Clickables := Map(), Pages := Map(), FocusGlobal := [], DescOf := Map()
 Steppers := Map(), Toggles := Map(), KeyBtns := Map(), SegCtls := Map(), Swatches := Map(), Choices := Map(), SwitchPos := Map()
 Menus := Map(), Brushes := Map()
-Stats := {casts: 0, reels: 0, misses: 0, start: 0}
+Stats := {casts: 0, reels: 0, misses: 0, start: 0, banked: true}
 Phase := {kind: "idle", title: "Ready", detail: ""}
 Repeat := {key: "", dir: 0, hwnd: 0, n: 0}
 Running := false, LoopActive := false, Calibrating := false, Capturing := false, MenuOpen := false
@@ -223,7 +224,7 @@ ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999, Rem
 ; Discord sign-in. The app's Client ID is public by design (no secret is used).
 DISCORD_CLIENT_ID := "1552771662787903568", DISCORD_PORT := 53682, DISCORD_INVITE := "https://discord.gg/ERkjTTYG4B"
 GUEST_TABS := ["Aquarium", "Sovereign", "Alerts", "Reconnect"]      ; (totems are open to guests)
-AuthState := {mode: "", id: "", name: "", plus: false, plusWhy: "", access: "", blockMsg: ""}
+AuthState := {mode: "", id: "", name: "", user: "", avatar: "", plus: false, plusWhy: "", access: "", blockMsg: ""}
 FISCHXR_GUILD_ID := ""        ; the FISCHXR server's ID (found from the invite when empty)
 FISCHXR_API := ""             ; the FISCHXR service (read from update.json's "api" when empty)
 ; (a test harness may set AuthTest before loading the macro)
@@ -316,9 +317,11 @@ Boot() {
     if show
         Splash.Step("Checking your sign-in", 98)
     tab := Cfg["ShowHome"] ? "Home" : Cfg["LastTab"]
-    if AuthGate()
+    gate := AuthGate()
+    SetTimer(VLockStart, -1500)                 ; (a version locked to a Discord role: checked soon)
+    if (gate = true)
         ShowMain(tab)
-    else
+    else if !Blocked.g                          ; (a blacklisted account: its own screen is up)
         Login.Show(tab)
     if show
         Splash.Close()
@@ -498,6 +501,8 @@ ToggleMacro() {
     global AqAbort
     if (AuthState.mode = "")                    ; the sign-in screen is up: nothing runs until a choice
         return
+    if VLock.g                                  ; this version is locked for this account
+        return
     if (Calibrating || Capturing)
         return
     if AqManual {
@@ -527,7 +532,7 @@ StartMacro() {
     }
     RobloxHwnd := hwnd
     Running := true
-    Stats.casts := 0, Stats.reels := 0, Stats.misses := 0, Stats.start := A_TickCount
+    Stats.casts := 0, Stats.reels := 0, Stats.misses := 0, Stats.start := A_TickCount, Stats.banked := false
     SovReels := 0, ReconnectWhy := "", LogFile := ""
     ScheduleTotems()
     UpdateStats()
@@ -547,6 +552,8 @@ StartMacro() {
 }
 
 StopMacro(msg := "") {
+    if (Stats.start && !Stats.banked)                   ; the session's fishing time, all-time
+        Cfg["LifeSecs"] += (A_TickCount - Stats.start) // 1000, Save("LifeSecs"), Stats.banked := true
     SetTimer(RemoteReportSoon, -1500)                  ; (the FISCHXR service hears it stopped)
     global Running
     was := Running
@@ -626,6 +633,7 @@ MacroLoop() {
             ; Jobs between catches: aquarium, totems, Sovereign recharge.
             if RunDueJobs() {
                 lastProgress := A_TickCount
+                ForgetRod()                             ; (a job may have changed what's in hand)
                 continue
             }
             a := AreaRect("Reel", cr), geo := VisionGeo(a)
@@ -650,6 +658,9 @@ MacroLoop() {
                 break
             }
             Stats.casts++, lastProgress := A_TickCount
+            Cfg["LifeCasts"] += 1, Save("LifeCasts")      ; (all-time, for the profile card)
+            if !Mod(Stats.casts, 15)                    ; now and then: the rod may have been swapped
+                ForgetRod()
             UpdateStats()
             if !Nap(Cfg["BobberWait"])
                 break
@@ -697,6 +708,7 @@ MacroLoop() {
             if ReconnectDue()          ; the game dropped mid-reel: don't count it
                 continue
             Stats.reels++, lastProgress := A_TickCount
+            Cfg["LifeReels"] += 1, Save("LifeReels")
             SovReels++
             UpdateStats()
             ; A reel that went badly (the bar didn't answer, it ended at once, or
@@ -1675,6 +1687,14 @@ ReelMouseSpot(clear) {
 ; The pause after a reel before casting again (Plus: Quick recast, 0.3 s).
 RecastGap() => (IsPlus() && Cfg["PlusQuickRecast"]) ? Min(Cfg["CatchDelay"], 300) : Cfg["CatchDelay"]
 
+; The rod in hand is read again from the hotbar before the next cast (unless
+; one was typed on the Rods page): a job, or the player, may have swapped it.
+ForgetRod() {
+    global CurRodName, CurRodLib, RodReadAt
+    if (Cfg["RodManual"] = "")
+        CurRodName := "", CurRodLib := "", RodReadAt := 0
+}
+
 
 ;==============================================================================
 ; Auto aquarium. Opens Fisch's aquarium panel, scrolls through the fish food
@@ -2138,6 +2158,8 @@ BuildGui() {
         UI.ring.Push(MainGui.Add("Text", "x0 y0 w1 h1 Hidden Background" Pal.focus))
     BuildMenus()
     LockPanel.Build()
+    BuildProfile()
+    RoundButtons()
     UiReady := true
     RodsChanged(), TotemsChanged()
 }
@@ -2153,7 +2175,7 @@ NavIcon(name) {
 ; strip. Hovering it opens the full sidebar (class Flyout) over the page.
 BuildSidebar() {
     UI.logoHbm := 0
-    if (src := LogoImage("icon")) {
+    if (src := AppLogo()) {
         UI.logoHbm := GpScaled(src, ZS(24), ZS(24), "0x" Pal.strip)
         if UI.logoHbm
             MainGui.Add("Picture", Format("x{} y{} w{} h{}", ZS((SIDEBAR_W - 24) // 2), ZS(15), ZS(24), ZS(24)), "HBITMAP:*" UI.logoHbm)
@@ -2666,7 +2688,8 @@ SwitchTab(name, speak := true) {
         HideRing()
     }
     if (name != "Home" && Cfg["LastTab"] != name) {
-        Cfg["LastTab"] := name
+        if (name != "Profile")                  ; (the profile isn't where FISCHXR reopens)
+            Cfg["LastTab"] := name
         Save("LastTab")
     }
     if speak
@@ -4001,6 +4024,57 @@ class SwitchArt {
     }
 }
 
+; Rounded corners for every button-like control (buttons, choices, keys, the
+; steppers' - and +, totem chips): each is clipped to a rounded rectangle.
+RoundButtons() {
+    for hwnd, e in Clickables
+        if (e.kind = "btn" || e.kind = "choice" || e.kind = "key" || e.kind = "step" || e.kind = "tt" || e.kind = "dlg")
+            RoundCtl(e.obj)
+}
+; top / bottom: round only those corners (for the two halves of a card).
+RoundCtl(ctl, top := true, bottom := true) {
+    try {
+        if (ctl.Type = "Pic")
+            return
+        rc := Buffer(16)
+        DllCall("GetWindowRect", "Ptr", ctl.Hwnd, "Ptr", rc)
+        w := NumGet(rc, 8, "Int") - NumGet(rc, 0, "Int"), h := NumGet(rc, 12, "Int") - NumGet(rc, 4, "Int"), r := ZS(12)
+        rgn := DllCall("CreateRoundRectRgn", "Int", 0, "Int", top ? 0 : -r, "Int", w + 1, "Int", bottom ? h + 1 : h + r, "Int", r, "Int", r, "Ptr")
+        DllCall("SetWindowRgn", "Ptr", ctl.Hwnd, "Ptr", rgn, "Int", true)
+    }
+}
+
+; The profile: a page of its own (opened from your name in the sidebar).
+BuildProfile() {
+    global ColX, RowBase
+    ColX := PAGE_X - PAD, RowBase := ROW_Y0
+    Pages["Profile"] := {ctls: [], focus: [], desc: ""}
+    x := PAGE_X, cw := (LEFT_W - 12) // 2
+    UI.pfAvatar := MainGui.Add("Picture", Format("x{} y{} w{} h{}", ZS(x), ZS(18), ZS(80), ZS(80)))
+    Pages["Profile"].ctls.Push(UI.pfAvatar)
+    UI.pfName := AddT("Profile", x + 96, 22, LEFT_W - 96, 34, "", "display", 18, Pal.text, Pal.content, "0x200")
+    UI.pfUser := AddT("Profile", x + 96, 56, LEFT_W - 96, 20, "", "body", 10, Pal.dim, Pal.content, "0x200")
+    UI.pfBadge := AddT("Profile", x + 96, 78, LEFT_W - 96, 20, "", "body", 9, Pal.dim, Pal.content, "0x200")
+    ; cards: a title strip and its values, each half rounded
+    card(cx, cy, w, h, title) {
+        t := AddT("Profile", cx, cy, w, 26, "   " title, "body", 8, Pal.dim, Pal.field, "0x200")
+        v := AddT("Profile", cx, cy + 26, w, h - 26, "", "body", 10, Pal.text, Pal.field)
+        UI.pfCards.Push([t, v])
+        return v
+    }
+    UI.pfCards := []
+    UI.pfSess := card(x, 108, cw, 118, "THIS SESSION")
+    UI.pfLife := card(x + cw + 12, 108, cw, 118, "ALL TIME")
+    UI.pfAcct := card(x, 236, LEFT_W, 58, "DISCORD ACCOUNT")
+    b := AddT("Profile", x, 306, 150, 34, "Log out", "body", 10, Pal.text, Pal.field, "Center 0x200")
+    Clickables[b.Hwnd] := {kind: "btn", fn: (*) => SignOut(), obj: b, bg: Pal.field, hv: Pal.fieldHi}
+    b := AddT("Profile", x + LEFT_W - 150, 306, 150, 34, "Back", "body", 10, Pal.ink, Pal.accent, "Center 0x200")
+    Clickables[b.Hwnd] := {kind: "btn", fn: (*) => ProfileBack(), obj: b, bg: Pal.accent, hv: Pal.accentHi}
+    for c in UI.pfCards
+        RoundCtl(c[1], true, false), RoundCtl(c[2], false, true)
+    Pages["Profile"].desc := "Your FISCHXR profile."
+}
+
 
 ;==============================================================================
 ; Settings actions
@@ -4319,28 +4393,23 @@ WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
     x := x >= 0x8000 ? x - 0x10000 : x, y := y >= 0x8000 ? y - 0x10000 : y
     if (IsObject(Dialog.g) && hwnd = Dialog.g.Hwnd) {
         h := ChildAt(hwnd, x, y)
-        if (h && Clickables.Has(h)) {
+        if (h && Clickables.Has(h))
             Press(h, Clickables[h])
-            return 0
-        }
-        PostMessage(0xA1, 2, 0, , "ahk_id " hwnd)
-        return 0
+        return 0                                        ; (pop-outs stay where they open)
     }
     ; the sign-in window, and the opened sidebar: their buttons and tabs
-    if ((Login.g && hwnd = Login.g.Hwnd) || (Flyout.g && hwnd = Flyout.g.Hwnd)) {
+    if (PopupOf(hwnd)) {
         h := ChildAt(hwnd, x, y)
         if (h && Clickables.Has(h))
             Press(h, Clickables[h])
-        else if (Login.g && hwnd = Login.g.Hwnd)
-            PostMessage(0xA1, 2, 0, , "ahk_id " hwnd)      ; drag the sign-in screen by any empty spot
+        else if ((Login.g && hwnd = Login.g.Hwnd) || (Blocked.g && hwnd = Blocked.g.Hwnd) || (VLock.g && hwnd = VLock.g.Hwnd))
+            PostMessage(0xA1, 2, 0, , "ahk_id " hwnd)      ; (these stand in for the main window: it moves)
         return 0
     }
-    ; the small panel while fishing: Stop, or drag it anywhere
+    ; the small panel while fishing: Stop (it stays in its corner)
     if (Hud.g && hwnd = Hud.g.Hwnd) {
         if (ChildAt(hwnd, x, y) = Hud.stop.Hwnd)
             SetTimer(ToggleMacro, -1)
-        else
-            PostMessage(0xA1, 2, 0, , "ahk_id " hwnd)
         return 0
     }
     if (!IsObject(MainGui) || hwnd != MainGui.Hwnd || !UiReady)
@@ -4396,7 +4465,7 @@ Press(h, e) {
 }
 
 WM_MOUSEMOVE(wParam, lParam, msg, hwnd) {
-    if (UiReady && ((Flyout.g && hwnd = Flyout.g.Hwnd) || (Login.g && hwnd = Login.g.Hwnd))) {
+    if (UiReady && PopupOf(hwnd)) {
         x := lParam & 0xFFFF, y := (lParam >> 16) & 0xFFFF
         SetHover(ChildAt(hwnd, x >= 0x8000 ? x - 0x10000 : x, y >= 0x8000 ? y - 0x10000 : y))
         return
@@ -4561,7 +4630,7 @@ ChildAtCursor() {
     pt := Buffer(8, 0)
     DllCall("GetCursorPos", "Ptr", pt)
     top := DllCall("WindowFromPoint", "Int64", NumGet(pt, 0, "Int64"), "Ptr")
-    for pop in [Flyout.g, Login.g] {
+    for pop in [Flyout.g, Login.g, Blocked.g, Profile.g, VLock.g] {
         ph := 0
         try ph := pop ? pop.Hwnd : 0               ; (a window being rebuilt has none for a moment)
         if (ph && (top = ph || DllCall("GetAncestor", "Ptr", top, "UInt", 1, "Ptr") = ph)) {
@@ -4970,10 +5039,12 @@ class Dialog {
         SetFontFor(g, "norm s" FZ(10) " c" Pal.ink, "body")
         ok := g.Add("Text", Format("x{} y{} w{} h{} Center 0x200 Background{}", ZS(w - 24 - 120), y, bw, bh2, Pal.accent), okText)
         Clickables[ok.Hwnd] := {kind: "dlg", fn: ObjBindMethod(Dialog, "Ok"), obj: ok}
+        SetTimer(RoundCtl.Bind(ok), -1)
         if (cancelText != "") {
             SetFontFor(g, "norm s" FZ(10) " c" Pal.text, "body")
             cn := g.Add("Text", Format("x{} y{} w{} h{} Center 0x200 Background{}", ZS(w - 24 - 252), y, bw, bh2, Pal.field), cancelText)
             Clickables[cn.Hwnd] := {kind: "dlg", fn: ObjBindMethod(Dialog, "Close"), obj: cn}
+            SetTimer(RoundCtl.Bind(cn), -1)
         }
         g.OnEvent("Escape", (*) => Dialog.Close())
         g.Show(Format("Hide w{} h{}", ZS(w), y + bh2 + ZS(22)))
@@ -5442,6 +5513,18 @@ Cleanup(reason, code) {
     try DllCall("DeleteObject", "Ptr", UI.logoHbm)
     try Gdip.Stop()
     try DllCall("winmm\timeEndPeriod", "UInt", 1)
+}
+
+; Whether hwnd is one of FISCHXR's own windows with buttons of their own
+; (the opened sidebar, the sign-in screen, the blacklist screen, the profile card).
+PopupOf(hwnd) {
+    for pop in [Flyout.g, Login.g, Blocked.g, Profile.g, VLock.g] {
+        ph := 0
+        try ph := pop ? pop.Hwnd : 0
+        if (ph && hwnd = ph)
+            return true
+    }
+    return false
 }
 
 
@@ -7961,8 +8044,10 @@ RunTotems() {
                 continue
             }
         }
-        UseTotem(t)
-        t.next := A_TickCount + t.every * 60000
+        if UseTotem(t)
+            t.next := A_TickCount + t.every * 60000
+        else
+            t.next := A_TickCount + 30 * 60000         ; its key opened something else: tried again later
     }
 }
 
@@ -7970,14 +8055,56 @@ UseTotem(t, why := "") {
     SetPhase("job", "Using the " t.name " Totem", why != "" ? "Used " why "." : "Hotbar key " KeyName(t.slot) ", then back to the rod.")
     ReleaseMouse()
     MouseToCenter()
+    before := CenterShot()
     Send "{" t.slot "}"
     Nap(500)
+    ; A totem in hand changes little in the middle of the screen; a menu
+    ; (the Equipment Bag, the Bestiary...) covers it. A key that opened a menu
+    ; isn't clicked into (that click can equip a rod or buy something): the
+    ; menu is closed and the rod taken back.
+    if (before && (moved := CenterChange(before, CenterShot())) >= 0.35) {
+        Send "{" t.slot "}"
+        Nap(400)
+        Send "{" Cfg["RodKey"] "}"
+        Nap(500)
+        LogEvent(Format("Skipped the {} Totem: its hotbar key {} opened a menu instead ({}% of the screen's middle changed). Check its key on the Totems page.", t.name, KeyName(t.slot), Round(moved * 100)))
+        Alert("error", "Skipped the **" t.name " Totem**: its hotbar key " KeyName(t.slot) " opened a menu instead of a totem. Check its key on the Totems page.", true)
+        return false
+    }
     Click()
     Nap(Cfg["TotemWait"])
     Send "{" Cfg["RodKey"] "}"
     Nap(500)
     LogEvent("Used the " t.name " Totem")
     Alert("totem", "Used the **" t.name " Totem**" (why != "" ? " " why : "") ".")
+    return true
+}
+
+; The middle of the Roblox window, shrunk (for telling a menu from a totem).
+CenterShot() {
+    cr := RobloxHwnd ? ClientRect(RobloxHwnd) : 0
+    if !cr
+        return 0
+    g := ShrinkGrab(Round(cr.w * 0.4), Round(cr.h * 0.5), 8)
+    g.Grab(cr.x + Round(cr.w * 0.3), cr.y + Round(cr.h * 0.25))
+    return g
+}
+
+; How much of two such pictures differs (0-1): pixels whose brightness moved by 40 or more.
+CenterChange(a, b) {
+    if !(a && b) || a.w != b.w || a.h != b.h
+        return 0
+    n := 0, tot := 0
+    loop a.h {
+        o := (A_Index - 1) * a.stride
+        loop a.w {
+            p := o + (A_Index - 1) * 4, c1 := NumGet(a.bits, p, "UInt"), c2 := NumGet(b.bits, p, "UInt")
+            l1 := (2 * ((c1 >> 16) & 255) + 5 * ((c1 >> 8) & 255) + (c1 & 255)) >> 3
+            l2 := (2 * ((c2 >> 16) & 255) + 5 * ((c2 >> 8) & 255) + (c2 & 255)) >> 3
+            n += Abs(l1 - l2) >= 40, tot++
+        }
+    }
+    return tot ? n / tot : 0
 }
 
 ; Average brightness (0-255) of the sky: a grid of points across the top of
@@ -8461,10 +8588,18 @@ Reconnect() {
         return false
     try WinActivate("ahk_id " h)
     Sleep 500
-    if Cfg["RejoinResume"] {
-        MouseToCenter()
+    ; Fisch's loading screen waits for a click: a few, a moment apart, in the
+    ; middle of the game (nothing is in hand yet, so they can't cast).
+    SetPhase("pause", "Rejoining Fisch", "Clicking through the loading screen.")
+    loop 4 {
+        if (cr := ClientRect(h))
+            MouseMove(cr.x + cr.w // 2, cr.y + cr.h // 2, 0)
         Click()
-        Sleep 600
+        if !Nap(1500)
+            return false
+    }
+    LogEvent("Clicked through the loading screen")
+    if Cfg["RejoinResume"] {
         Send "{" Cfg["RodKey"] "}"
         Sleep 700
     }
@@ -8773,6 +8908,28 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.1.6
+- The FISCHXR team can now lock a version of FISCHXR to a Discord role (for test builds and early access). If your version is locked and you don't have the role, FISCHXR tells you so, and opens by itself as soon as you get it.
+
+5.1.5
+- Rounded buttons all through FISCHXR.
+- Your profile is now a full page: click your name in the sidebar, and Back takes you where you were.
+- Pop-up windows and the fishing panel stay where they open.
+- After a reconnect, FISCHXR clicks through Fisch's loading screen before it starts fishing again.
+
+5.1.4
+- Your profile! Click your name in the sidebar to see your Discord picture, name and username, your Plus status, this session's and all-time fishing, and when your Discord account was made. Log out lives there now.
+- The top-left corner shows the new FISCHXR logo.
+- A blacklisted account now sees a proper blacklist screen saying why, instead of FISCHXR. If the blacklist is lifted, FISCHXR opens signed in on its own.
+
+5.1.3
+- Totems are safer. If a totem's hotbar key opens a menu instead (say, the Equipment Bag after you've rearranged your hotbar), FISCHXR closes it without clicking, goes back to your rod and tells you to check that key. Before, its click could equip a different rod.
+- FISCHXR re-reads your rod after every job and every 15 casts, so a swapped rod is picked up straight away.
+
+5.1.2
+- Your rod is read correctly on any screen size. FISCHXR now finds the hotbar slot you're holding by its highlight, instead of guessing where slots sit, which could be a whole slot off on 1080p and other screens.
+- Small rod names are enlarged more before they're read, so they're read more reliably.
+
 5.1.1
 - Plus: the glowing border now has a running light, two bright streaks that race around the outside. It's on by default, and you can switch it off on the Plus tab (or with /settings set plus-glow-run off).
 - Plus: your catches per hour always show on the fishing panel.
@@ -9021,6 +9178,63 @@ RodSlotRect(cr, slot) {
     return {x: Round(cx - half), y: Round(cy - half), w: Round(2 * half), h: Round(2 * half)}
 }
 
+; The equipped hotbar slot, found by its light border (the slot in hand has
+; one, the others don't): {x, y, w, h} on screen, or 0. It doesn't assume
+; where the slots are or how big: Roblox sizes them by the screen's scaling,
+; so fixed proportions can point at the wrong slot on another screen.
+FindEquippedSlot(cr) {
+    f := Max(1, Round(cr.h / 1080))                          ; (bigger screens are looked at shrunk)
+    rx := cr.x + Round(cr.w * 0.2), rw := Round(cr.w * 0.6), ry := cr.y + Round(cr.h * 0.84), rh := cr.h - Round(cr.h * 0.84) - 1
+    g := f > 1 ? ShrinkGrab(rw, rh, f) : BandGrab(rw, rh)
+    g.Grab(rx, ry)
+    r := EquippedSlotIn(g, cr.h / f)
+    return r ? {x: rx + r.x * f, y: ry + r.y * f, w: r.w * f, h: r.h * f} : 0
+}
+
+; The same, in a captured strip b (H = the screen's height at the strip's scale).
+EquippedSlotIn(b, scrH) {
+    ; (AutoHotkey names ignore case: the strip's own width and height are bw, bh)
+    bw := b.w, bh := b.h, d := Max(2, Round(scrH * 0.004))
+    Lb := Buffer(bw * bh)
+    loop bh {
+        y := A_Index - 1, o := y * b.stride, q := y * bw
+        loop bw {
+            c := NumGet(b.bits, o + (A_Index - 1) * 4, "UInt")
+            NumPut("UChar", (2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3, Lb, q + A_Index - 1)
+        }
+    }
+    ; columns holding a long thin light line with dark beside it (a slot's side)
+    cols := [], lo := scrH * 0.03, hi := scrH * 0.085
+    loop bw - 2 * d {
+        x := A_Index - 1 + d, best := 0, run := 0, start := 0, bs := 0
+        loop bh {
+            p := (A_Index - 1) * bw + x, v := NumGet(Lb, p, "UChar")
+            if (v >= 110 && Min(NumGet(Lb, p - d, "UChar"), NumGet(Lb, p + d, "UChar")) <= v - 45) {
+                if !run
+                    start := A_Index - 1
+                run++
+                if (run > best)
+                    best := run, bs := start
+            } else
+                run := 0
+        }
+        if (best >= lo && best <= hi)
+            cols.Push([x, bs, best])
+    }
+    ; a left side and a right side as far apart as they are tall: the slot
+    top := 0, sc := -1e9
+    for a in cols
+        for c in cols {
+            span := c[1] - a[1], m := Max(a[3], c[3])
+            if (span <= 0 || span < 0.8 * m || span > 1.3 * m || Abs(a[2] - c[2]) > 0.2 * a[3] || Abs(a[3] - c[3]) > 0.25 * m)
+                continue
+            s := Min(a[3], c[3]) - Abs(span - m)
+            if (s > sc)
+                sc := s, top := {x: a[1], y: Min(a[2], c[2]), w: span, h: m}
+        }
+    return top
+}
+
 ; Starts reading the equipped rod's name. The result lands in CurRodName.
 ReadRodName(announce := false, *) {
     global RodReadBusy, RodReadAt
@@ -9030,14 +9244,21 @@ ReadRodName(announce := false, *) {
     cr := h ? ClientRect(h) : 0
     if !cr
         return RodNameDone("", "Roblox isn't open")
-    slot := RegExMatch(Cfg["RodKey"], "^[1-9]$") ? Cfg["RodKey"] : 1
-    r := RodSlotRect(cr, slot)
+    ; the slot in hand, found by its border; else the rod key's slot by position
+    if (r := FindEquippedSlot(cr)) {
+        LogVision(Format("Rod: the equipped slot is at {},{} ({}x{})", r.x, r.y, r.w, r.h))
+    } else {
+        slot := RegExMatch(Cfg["RodKey"], "^[1-9]$") ? Cfg["RodKey"] : 1
+        r := RodSlotRect(cr, slot)
+        LogVision("Rod: no equipped slot seen, reading slot " slot " by position")
+    }
     png := A_Temp "\fischxr_rod.png", out := A_Temp "\fischxr_rod.txt"
     hbm := CaptureBitmap(r.x, r.y, r.w, r.h)
     big := 0, bmp := 0
     if Gdip.Start() {
         DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", &bmp)
-        big := GpScaled(bmp, r.w * 3, r.h * 3, 0)          ; bigger text reads better
+        k := Max(3, Ceil(150 / Max(1, r.w)))               ; bigger text reads better (small slots more so)
+        big := GpScaled(bmp, r.w * k, r.h * k, 0)
         DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
     }
     ok := SavePng(big ? big : hbm, png)
@@ -9185,9 +9406,16 @@ AuthGate() {
             me := DiscordMe(tok, &status)
             if IsObject(me) {
                 r := Remote.Check(tok)
-                if (r.ok && r.blacklisted) {           ; not allowed to sign in: the sign-in screen says so
-                    ForgetSignIn(), AuthState.blockMsg := BlockText(r.reason)
-                    return false
+                if (r.ok && r.blacklisted) {           ; blacklisted: its own screen
+                    AuthState.name := me.name, Cfg["AuthUser"] := me.user
+                    BlockEnter(r.reason)
+                    return "blocked"
+                }
+                if (r.ok && Cfg["Blocked"])             ; (no longer blacklisted)
+                    Cfg["Blocked"] := 0, Cfg["BlockedReason"] := "", Save("Blocked"), Save("BlockedReason")
+                if (!r.ok && Cfg["Blocked"]) {         ; can't ask: as last time
+                    BlockEnter(Cfg["BlockedReason"])
+                    return "blocked"
                 }
                 SignedIn(me, tok, Cfg["AuthExp"], false)
                 if r.ok
@@ -9203,6 +9431,9 @@ AuthGate() {
 
 SignedIn(me, tok, exp, fresh) {
     AuthState.mode := "discord", AuthState.id := me.id, AuthState.name := me.name
+    AuthState.user := me.HasOwnProp("user") ? me.user : Cfg["AuthUser"], AuthState.avatar := me.HasOwnProp("avatar") ? me.avatar : Cfg["AuthAvatar"]
+    Cfg["AuthUser"] := AuthState.user, Cfg["AuthAvatar"] := AuthState.avatar
+    try Save("AuthUser"), Save("AuthAvatar")
     Cfg["AuthMode"] := "discord", Cfg["AuthTok"] := Protect(tok), Cfg["AuthExp"] := exp
     Cfg["AuthName"] := me.name, Cfg["AuthId"] := me.id
     SaveAuth()
@@ -9217,6 +9448,8 @@ SignedIn(me, tok, exp, fresh) {
     AuthState.access := Cfg["PlusAccess"]       ; (Plus given or taken by the team)
     PlusCheck(tok)                              ; boosting the FISCHXR server: Plus
     Remote.Start()                              ; the FISCHXR service: rules and remote settings
+    VLock.rolesAt := 0
+    SetTimer(VLockCheckSoon, -600)              ; (a version locked to a role: this account's turn)
 }
 
 SignOut(prompt := true) {
@@ -9260,10 +9493,10 @@ DiscordMe(tok, &status := 0) {
         status := req.Status
         if (status != 200)
             return 0
-        js := req.ResponseText, id := JsonField(js, "id"), nm := JsonField(js, "global_name")
+        js := req.ResponseText, id := JsonField(js, "id"), nm := JsonField(js, "global_name"), un := JsonField(js, "username")
         if (nm = "")
-            nm := JsonField(js, "username")
-        return id != "" ? {id: id, name: nm} : 0
+            nm := un
+        return id != "" ? {id: id, name: nm, user: un, avatar: JsonField(js, "avatar")} : 0
     }
     return 0
 }
@@ -9581,8 +9814,12 @@ class Login {
         }
         r := Remote.Check(a)
         if (r.ok && r.blacklisted) {
-            this.SetLabel("Login with |Discord"), this.SetStatus(BlockText(r.reason))
-            try LogEvent("Sign-in refused: this Discord account isn't allowed to sign in")
+            try LogEvent("Sign-in refused: this Discord account is blacklisted")
+            Cfg["AuthMode"] := "discord", Cfg["AuthTok"] := Protect(a), Cfg["AuthExp"] := UnixNow() + b
+            Cfg["AuthName"] := me.name, Cfg["AuthId"] := me.id, Cfg["AuthUser"] := me.user, Cfg["AuthAvatar"] := me.avatar
+            SaveAuth(), Save("AuthUser"), Save("AuthAvatar")
+            this.Dismiss()
+            BlockEnter(r.reason)
             return
         }
         Cfg["AuthScope"] := DiscordAuth.scope
@@ -9597,6 +9834,20 @@ class Login {
         AuthState.mode := "guest"
         LogEvent("Using FISCHXR as a guest")
         this.Close()
+        SetTimer(VLockCheckSoon, -600)
+    }
+
+    ; Gone without the main window taking its place (the blacklist screen does).
+    static Dismiss() {
+        g := this.g, this.g := 0
+        for c in this.own
+            if IsObject(c)
+                try Clickables.Delete(c.Hwnd)
+        this.own := [], this.pics := Map(), this.busy := false
+        Anim.Finish("signbtn")
+        if g
+            try g.Destroy()
+        SignArt.Release()
     }
 
     ; The choice is made: the main window takes its place.
@@ -9708,12 +9959,12 @@ class SignArt {
 
     ; Text in the design's units: fam is an Inter face ("Inter", "Inter Medium",
     ; ...), style 0 plain / 1 bold / 4 underlined, alpha 0-255 of white.
-    static Text(c, str, fam, px, style, alpha, x, y, w, h, align := 0, valign := 0, rgb := 0xFFFFFF) {
+    static Text(c, str, fam, px, style, alpha, x, y, w, h, align := 0, valign := 0, rgb := 0xFFFFFF, wrap := false) {
         s := this.s
         if (style & 1)
             fam := "Inter Bold", style &= ~1
         DllCall("gdiplus\GdipCreateFont", "Ptr", this.Family(fam), "Float", px * s, "Int", style, "Int", 2, "Ptr*", &font := 0)
-        fmt := this.Format()
+        fmt := this.Format(wrap)
         DllCall("gdiplus\GdipSetStringFormatAlign", "Ptr", fmt, "Int", align)
         DllCall("gdiplus\GdipSetStringFormatLineAlign", "Ptr", fmt, "Int", valign)
         DllCall("gdiplus\GdipCreateSolidFill", "UInt", (alpha << 24) | rgb, "Ptr*", &br := 0)
@@ -9733,10 +9984,10 @@ class SignArt {
 
     ; Text laid out without the padding GDI+ normally adds around it (Figma
     ; adds none), on one line, trailing spaces measured.
-    static Format() {
+    static Format(wrap := false) {
         DllCall("gdiplus\GdipStringFormatGetGenericTypographic", "Ptr*", &tf := 0)
         DllCall("gdiplus\GdipCloneStringFormat", "Ptr", tf, "Ptr*", &fmt := 0)
-        DllCall("gdiplus\GdipSetStringFormatFlags", "Ptr", fmt, "Int", 0x4000 | 0x1000 | 0x800)
+        DllCall("gdiplus\GdipSetStringFormatFlags", "Ptr", fmt, "Int", 0x4000 | (wrap ? 0 : 0x1000) | 0x800)
         return fmt
     }
 
@@ -9767,6 +10018,33 @@ class SignArt {
         return this.Done(c)
     }
 
+    ; The blacklist screen: the logo, what happened and why.
+    static BlockedBackground(name, user, reason) {
+        c := this.Canvas(0, 0, 540, 416), s := this.s
+        if this.logo
+            DllCall("gdiplus\GdipDrawImageRectI", "Ptr", c.g, "Ptr", this.logo, "Int", Round(19 * s), "Int", Round(18 * s), "Int", Round(87 * s), "Int", Round(87 * s))
+        this.Text(c, "Account blacklisted", "Inter ExtraBold", 30, 0, 255, 19, 105, 500, 40, 0, 0, 0xFF5A5A)
+        who := (name != "" ? name : "This Discord account") (user != "" && user != name ? " (@" user ")" : "")
+        this.Text(c, who " has been blacklisted from FISCHXR by the FISCHXR team.", "Inter Medium", 13, 0, 191, 19, 146, 500, 36, 0, 0, 0xFFFFFF, true)
+        this.Text(c, "REASON", "Inter SemiBold", 11, 0, 140, 19, 190, 200, 16)
+        this.Text(c, reason != "" ? reason : "No reason was given.", "Inter", 14, 0, 242, 19, 208, 500, 60, 0, 0, 0xFFFFFF, true)
+        this.Text(c, "You can't sign in to or use FISCHXR with this account. If you think this is a mistake, ask in the FISCHXR Discord server.", "Inter", 12, 0, 153, 19, 276, 500, 36, 0, 0, 0xFFFFFF, true)
+        return this.Done(c)
+    }
+
+    ; The version-locked screen.
+    static LockedBackground(ver, roleName, guest) {
+        c := this.Canvas(0, 0, 540, 416), s := this.s
+        if this.logo
+            DllCall("gdiplus\GdipDrawImageRectI", "Ptr", c.g, "Ptr", this.logo, "Int", Round(19 * s), "Int", Round(18 * s), "Int", Round(87 * s), "Int", Round(87 * s))
+        this.Text(c, "Version locked", "Inter ExtraBold", 30, 0, 255, 19, 105, 500, 40, 0, 0, 0xFFC940)
+        this.Text(c, "FISCHXR " ver " is only for members with the " (roleName != "" ? roleName : "right") " role in the FISCHXR Discord server.", "Inter Medium", 13, 0, 191, 19, 146, 500, 36, 0, 0, 0xFFFFFF, true)
+        this.Text(c, guest ? "Sign in with Discord so FISCHXR can check your roles."
+            : "Your Discord account doesn't have that role. Ask about it in the FISCHXR server, or use another version of FISCHXR.", "Inter", 13, 0, 230, 19, 196, 500, 56, 0, 0, 0xFFFFFF, true)
+        this.Text(c, "This screen goes away by itself as soon as the lock is lifted or you get the role.", "Inter", 12, 0, 153, 19, 276, 500, 36, 0, 0, 0xFFFFFF, true)
+        return this.Done(c)
+    }
+
     ; The status line under the explanation.
     static Status(str) {
         c := this.Canvas(19, 230, 420, 40)
@@ -9776,10 +10054,11 @@ class SignArt {
     }
 
     ; "Continue as a Guest*": 60% white, 95% when the mouse is on it.
-    static Guest(t) {
+    static Guest(t) => this.Link("Continue as a Guest*", t)
+    static Link(words, t) {
         c := this.Canvas(15, 368, 160, 26), s := this.s, a := Round(153 + 89 * t)
-        this.Text(c, "Continue as a Guest*", "Inter", 13, 0, a, 19, 368, 160, 24, 0, 1)
-        w := this.TextWidth(c, "Continue as a Guest*", "Inter", 13, 0)
+        this.Text(c, words, "Inter", 13, 0, a, 19, 368, 160, 24, 0, 1)
+        w := this.TextWidth(c, words, "Inter", 13, 0)
         DllCall("gdiplus\GdipCreatePen1", "UInt", (a << 24) | 0xFFFFFF, "Float", Max(1, s), "Int", 2, "Ptr*", &pen := 0)
         uy := (387 - c.y) * s
         DllCall("gdiplus\GdipDrawLine", "Ptr", c.g, "Ptr", pen, "Float", (19 - c.x) * s, "Float", uy, "Float", (19 + w - c.x) * s, "Float", uy)
@@ -9789,7 +10068,7 @@ class SignArt {
 
     ; The Discord button, t from 0 (resting) to 1 (under the mouse). label has
     ; its bold part after "|" ("Login with |Discord").
-    static Button(label, t, pressed := false) {
+    static Button(label, t, pressed := false, centred := false) {
         c := this.Canvas(292, 337, 245, 67), s := this.s
         ; the glow: rounded rings fading outward, blurple
         ga := Round((pressed ? 7 : 11) + 6 * t)
@@ -9815,7 +10094,7 @@ class SignArt {
         ; the label, right-aligned to x 487 as designed, with a faint shadow
         parts := StrSplit(label, "|"), a := parts[1], bo := parts.Length > 1 ? parts[2] : ""
         wa := this.TextWidth(c, a, "Inter SemiBold", 16, 0), wb := bo != "" ? this.TextWidth(c, bo, "Inter", 16, 1) : 0
-        x0 := 487 - wa - wb
+        x0 := centred ? 308 + (213 - wa - wb) / 2 : 487 - wa - wb           ; (the sign-in button's own label sits right, as designed)
         for sh in [[1, 64, 0x000000], [0, 255, 0xFFFFFF]] {
             this.Text(c, a, "Inter SemiBold", 16, 0, sh[2], x0, 361 + sh[1], wa + 4, 22, 0, 0, sh[3])
             if (bo != "")
@@ -9883,14 +10162,14 @@ class LockPanel {
 PaintAccount() {
     if !Flyout.acct
         return
-    try Flyout.acct.Text := IsGuest() ? "Guest · Log in" : AuthState.name " · Log out"
+    try Flyout.acct.Text := IsGuest() ? "Guest · Log in" : AuthState.name
 }
 AccountClick() {
     Flyout.Close()
     if IsGuest()
         Login.Show()
     else
-        Dialog.Show("Discord account", "Signed in as " AuthState.name ".", "Log out", (*) => SignOut(), "Cancel")
+        Profile.Show()
 }
 
 
@@ -10006,6 +10285,14 @@ ClearTypedRod(reread := true) {
     RodsChanged()
     if reread
         SetTimer(ReadRodName.Bind(true), -1)
+}
+
+; The FISCHXR logo (as used on the sign-in screen and the taskbar).
+AppLogo() {
+    static img := 0
+    if (!img && Gdip.Start())
+        img := GpFromBase64(SignInAsset("logo"))
+    return img ? img : LogoImage("icon")
 }
 
 
@@ -10475,7 +10762,8 @@ DiscordMember(tok) {
         req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
         req.Send()
         st := req.Status
-        return {status: st, premium: st = 200 && RegExMatch(req.ResponseText, '"premium_since"\s*:\s*"')}
+        return {status: st, premium: st = 200 && RegExMatch(req.ResponseText, '"premium_since"\s*:\s*"')
+            , roles: st = 200 && RegExMatch(req.ResponseText, '"roles"\s*:\s*\[([^\]]*)\]', &rm) ? rm[1] : ""}
     }
     return {status: 0, premium: false}
 }
@@ -10983,10 +11271,8 @@ RemoteApply(r) {
         return
     if r.blacklisted {
         if !IsGuest() {
-            try LogEvent("This Discord account isn't allowed to sign in any more: signed out")
-            SignOut(false), ForgetSignIn()
-            AuthState.blockMsg := BlockText(r.reason)
-            Login.Show(CurTab)
+            try LogEvent("This Discord account was blacklisted")
+            BlockEnter(r.reason)
         }
         return
     }
@@ -11110,5 +11396,400 @@ JsonUnescape(s) {
             out .= c, i += 1
     }
     return out
+}
+
+;==============================================================================
+; The blacklist screen: when the FISCHXR team blacklists an account, FISCHXR
+; becomes this screen (like the sign-in screen, the whole program): who, why,
+; and where to ask. It's remembered across starts and checked with the FISCHXR
+; service every 2 minutes; lifted, it goes and the account is signed in.
+;==============================================================================
+BlockEnter(reason) {
+    Cfg["Blocked"] := 1, Cfg["BlockedReason"] := reason
+    Save("Blocked"), Save("BlockedReason")
+    if (Running || AqManual)
+        try StopMacro("")
+    try Remote.Stop()
+    Blocked.Show(AuthState.name != "" ? AuthState.name : Cfg["AuthName"], Cfg["AuthUser"], reason)
+}
+
+class Blocked {
+    static g := 0, own := [], pics := Map(), ticker := 0, reason := "", name := "", hot := 0
+
+    static Show(name, user, reason) {
+        if this.g {
+            try this.g.Show()
+            return
+        }
+        this.name := name, this.reason := reason
+        ; nothing else stays: the main window, the fishing panel, the sign-in screen
+        px := "", py := ""
+        try Flyout.Close()
+        try Profile.Close()
+        if Login.g
+            Login.Dismiss()
+        if (IsObject(MainGui) && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd))
+            WinGetPos(&px, &py, , , MainGui.Hwnd), MainGui.Hide()
+        else if (IsNumber(Cfg["WinX"]) && IsNumber(Cfg["WinY"]))
+            px := Integer(Cfg["WinX"]), py := Integer(Cfg["WinY"])
+        try Hud.Hide()
+        AuthState.mode := ""                                 ; nothing starts
+        g := Gui("-Caption +MinimizeBox" (Cfg["OnTop"] ? " +AlwaysOnTop" : ""), APP_NAME " - blacklisted")
+        g.BackColor := "000000", g.MarginX := 0, g.MarginY := 0
+        this.g := g, this.own := [], this.pics := Map()
+        SignArt.Start()
+        this.Pic("bg", 0, 0, 540, 416, SignArt.BlockedBackground(name, user, reason), 0x04000000)
+        this.Pic("btn", 292, 337, 245, 67, SignArt.Button("Open the FISCHXR |server", 0, false, true))
+        this.Pic("link", 15, 368, 160, 26, SignArt.Link("Close FISCHXR", 0))
+        Clickables[this.pics["btn"].Hwnd] := {kind: "btn", fn: (*) => Run(DISCORD_INVITE), obj: this.pics["btn"], bg: "000000", hv: "000000"
+            , onHover: (hot) => Blocked.SetPic("btn", SignArt.Button("Open the FISCHXR |server", hot ? 1 : 0, false, true))}
+        Clickables[this.pics["link"].Hwnd] := {kind: "btn", fn: (*) => ExitApp(), obj: this.pics["link"], bg: "000000", hv: "000000"
+            , onHover: (hot) => Blocked.SetPic("link", SignArt.Link("Close FISCHXR", hot ? 1 : 0))}
+        SetFontFor(g, "norm s" FZ(HasIconFont ? 9 : 12) " c999999", HasIconFont ? "icon" : "body")
+        mn := g.Add("Text", Format("x{} y0 w{} h{} Center 0x200 Background000000", ZS(460), ZS(40), ZS(30)), IconOr(Chr(0xE921), "–"))
+        cl := g.Add("Text", Format("x{} y0 w{} h{} Center 0x200 Background000000", ZS(500), ZS(40), ZS(30)), IconOr(Chr(0xE8BB), "×"))
+        Clickables[mn.Hwnd] := {kind: "btn", fn: (*) => WinMinimize("ahk_id " Blocked.g.Hwnd), obj: mn, bg: "000000", hv: "1C1C1C"}
+        Clickables[cl.Hwnd] := {kind: "btn", fn: (*) => ExitApp(), obj: cl, bg: "000000", hv: "C42B1C", hvText: "FFFFFF"}
+        this.own := [mn, cl, this.pics["btn"], this.pics["link"]]
+        DllCall("SetWindowPos", "Ptr", this.pics["bg"].Hwnd, "Ptr", 1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x13)
+        g.OnEvent("Close", (*) => ExitApp())
+        g.Show((px != "" ? Format("x{} y{} ", px, py) : "") "w" ZS(540) " h" ZS(416))
+        StyleWindow(g.Hwnd)
+        try ApplyAppIcon(g.Hwnd)
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Recheck")
+        SetTimer(this.ticker, 120000)
+    }
+
+    static Pic(name, x, y, w, h, hbm, style := 0) {
+        p := this.g.Add("Picture", Format("x{} y{} w{} h{}{}", ZS(x), ZS(y), ZS(w), ZS(h), style ? " +" style : ""), "HBITMAP:" hbm)
+        this.pics[name] := p
+        return p
+    }
+    static SetPic(name, hbm) {
+        if !(this.g && this.pics.Has(name))
+            return DllCall("DeleteObject", "Ptr", hbm)
+        hw := this.pics[name].Hwnd
+        old := SendMessage(0x172, 0, hbm, hw), cur := SendMessage(0x173, 0, 0, hw)
+        if (old && old != cur)
+            DllCall("DeleteObject", "Ptr", old)
+        if (cur != hbm)
+            DllCall("DeleteObject", "Ptr", hbm)
+    }
+
+    ; Every 2 minutes: still blacklisted? If not, FISCHXR opens signed in.
+    static Recheck() {
+        tok := Unprotect(Cfg["AuthTok"])
+        if (tok = "")
+            return
+        r := Remote.Check(tok)
+        if (r.ok && !r.blacklisted)
+            this.Lift(tok)
+    }
+
+    static Lift(tok) {
+        Cfg["Blocked"] := 0, Cfg["BlockedReason"] := ""
+        Save("Blocked"), Save("BlockedReason")
+        try LogEvent("No longer blacklisted: welcome back")
+        me := DiscordMe(tok)
+        if !IsObject(me)
+            me := {id: Cfg["AuthId"], name: Cfg["AuthName"], user: Cfg["AuthUser"], avatar: Cfg["AuthAvatar"]}
+        px := "", py := ""
+        if this.g
+            try WinGetPos(&px, &py, , , this.g.Hwnd)
+        this.Destroy()
+        SignedIn(me, tok, Cfg["AuthExp"], false)
+        ShowMain(Pages.Has(CurTab) ? CurTab : "Home", px, py)
+    }
+
+    static Destroy() {
+        if this.ticker
+            SetTimer(this.ticker, 0)
+        g := this.g, this.g := 0
+        for c in this.own
+            if IsObject(c)
+                try Clickables.Delete(c.Hwnd)
+        this.own := [], this.pics := Map()
+        if g
+            try g.Destroy()
+        SignArt.Release()
+    }
+}
+
+;==============================================================================
+; The profile: a page of the main window, opened from your name in the
+; sidebar. Your Discord picture, name and @username, Plus, this session's and
+; all-time fishing, when your Discord account was made; Log out and Back.
+;==============================================================================
+class Profile {
+    static g := 0, from := "Home", ticker := 0
+    static Show() {
+        if IsGuest()
+            return Login.Show()
+        if (CurTab != "Profile")
+            this.from := CurTab
+        ProfileRefresh(true)
+        SwitchTab("Profile")
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Tick")
+        SetTimer(this.ticker, 1000)                       ; (the session's numbers keep up)
+    }
+    static Tick() {
+        if (CurTab != "Profile" || !UiReady)
+            return SetTimer(this.ticker, 0)
+        ProfileRefresh(false)
+    }
+    static Close() => 0
+}
+ProfileBack() => SwitchTab(Pages.Has(Profile.from) && Profile.from != "Profile" ? Profile.from : "Home")
+
+ProfileRefresh(withPicture) {
+    if !(UiReady && UI.HasOwnProp("pfName"))
+        return
+    try {
+        UI.pfName.Text := AuthState.name
+        UI.pfUser.Text := AuthState.user != "" ? "@" AuthState.user : ""
+        UI.pfBadge.Text := IsPlus() ? "✦ FISCHXR Plus" (AuthState.access = "grant" ? " (given by the team)" : "") : "FISCHXR member"
+        UI.pfBadge.SetFont("c" (IsPlus() ? "FF4FD8" : Pal.dim))
+        secs := Stats.start ? (A_TickCount - Stats.start) // 1000 : 0
+        live := (Stats.start && !Stats.banked) ? secs : 0
+        rate := secs >= 60 ? Round(Stats.reels * 3600 / secs) " per hour" : "– per hour"
+        UI.pfSess.Text := Format("   {} casts`n   {} reels`n   {} fishing`n   {}", Stats.casts, Stats.reels, HMS(live ? secs : 0), rate)
+        UI.pfLife.Text := Format("   {} casts`n   {} reels`n   {} fishing", Cfg["LifeCasts"], Cfg["LifeReels"], HMS(Cfg["LifeSecs"] + live))
+        UI.pfAcct.Text := AuthState.id != "" ? "   Made " DiscordMade(AuthState.id) "   ·   ID " AuthState.id : ""
+        if withPicture {
+            hbm := ProfileAvatar(ZS(80), IsPlus() ? "FF4FD8" : Pal.accent, Pal.content)
+            hw := UI.pfAvatar.Hwnd
+            old := SendMessage(0x172, 0, hbm, hw), cur := SendMessage(0x173, 0, 0, hw)
+            if (old && old != cur)
+                DllCall("DeleteObject", "Ptr", old)
+            if (cur != hbm)
+                DllCall("DeleteObject", "Ptr", hbm)
+        }
+    }
+}
+
+HMS(secs) => Format("{}:{:02}:{:02}", secs // 3600, Mod(secs // 60, 60), Mod(secs, 60))
+
+; When a Discord account was made, from its ID (the ID holds the time).
+DiscordMade(id) {
+    try {
+        ms := (Integer(id) >> 22) + 1420070400000
+        return FormatTime(DateAdd("19700101000000", ms // 1000, "Seconds"), "MMMM d, yyyy")
+    }
+    return "?"
+}
+
+; The signed-in person's Discord picture, round, size px across, with a ring:
+; an HBITMAP. Downloaded once and kept; if it can't be, their initial.
+ProfileAvatar(size, ring, bgc := "") {
+    bgc := bgc != "" ? bgc : Pal.bar
+    if !Gdip.Start()
+        return 0
+    img := 0, id := AuthState.id, hash := AuthState.avatar
+    if (id != "" && !AuthTest.noPrompt) {
+        file := A_Temp "\fischxr_avatar_" id "_" (hash != "" ? hash : "default") ".png"
+        if !FileExist(file) {
+            url := hash != "" ? "https://cdn.discordapp.com/avatars/" id "/" hash ".png?size=128"
+                : "https://cdn.discordapp.com/embed/avatars/" Mod(Integer(id) >> 22, 6) ".png"
+            try {
+                buf := HttpGet(url, &st, true, 4000)
+                if (st = 200 && IsObject(buf) && buf.Size > 100) {
+                    f := FileOpen(file, "w"), f.RawWrite(buf), f.Close()
+                }
+            }
+        }
+        if FileExist(file)
+            DllCall("gdiplus\GdipCreateBitmapFromFile", "WStr", file, "Ptr*", &img)
+    }
+    DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", size, "Int", size, "Int", 0, "Int", 0x26200A, "Ptr", 0, "Ptr*", &bmp := 0)
+    DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", bmp, "Ptr*", &gr := 0)
+    DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", gr, "Int", 4), DllCall("gdiplus\GdipSetInterpolationMode", "Ptr", gr, "Int", 7)
+    DllCall("gdiplus\GdipSetTextRenderingHint", "Ptr", gr, "Int", 4)
+    DllCall("gdiplus\GdipGraphicsClear", "Ptr", gr, "UInt", 0xFF000000 | Integer("0x" bgc))
+    DllCall("gdiplus\GdipCreatePath", "Int", 0, "Ptr*", &p := 0)
+    DllCall("gdiplus\GdipAddPathEllipse", "Ptr", p, "Float", 2, "Float", 2, "Float", size - 4, "Float", size - 4)
+    DllCall("gdiplus\GdipSetClipPath", "Ptr", gr, "Ptr", p, "Int", 0)
+    if img {
+        DllCall("gdiplus\GdipDrawImageRectI", "Ptr", gr, "Ptr", img, "Int", 2, "Int", 2, "Int", size - 4, "Int", size - 4)
+        DllCall("gdiplus\GdipDisposeImage", "Ptr", img)
+    } else {
+        ; no picture: their initial on the accent colour
+        DllCall("gdiplus\GdipCreateSolidFill", "UInt", 0xFF000000 | Integer("0x" ring), "Ptr*", &br := 0)
+        DllCall("gdiplus\GdipFillPath", "Ptr", gr, "Ptr", br, "Ptr", p), DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+        SignArt.Start()                                     ; (the bundled Inter, always there)
+        fam := SignArt.Family("Inter Bold")
+        if fam {
+            DllCall("gdiplus\GdipCreateFont", "Ptr", fam, "Float", size * 0.42, "Int", 1, "Int", 2, "Ptr*", &font := 0)
+            DllCall("gdiplus\GdipCreateStringFormat", "Int", 0, "UShort", 0, "Ptr*", &fmt := 0)
+            DllCall("gdiplus\GdipSetStringFormatAlign", "Ptr", fmt, "Int", 1), DllCall("gdiplus\GdipSetStringFormatLineAlign", "Ptr", fmt, "Int", 1)
+            DllCall("gdiplus\GdipCreateSolidFill", "UInt", 0xFFFFFFFF, "Ptr*", &tb := 0)
+            rc := Buffer(16), NumPut("Float", 0, "Float", 0, "Float", size, "Float", size, rc)
+            DllCall("gdiplus\GdipDrawString", "Ptr", gr, "WStr", StrUpper(SubStr(AuthState.name, 1, 1)), "Int", -1, "Ptr", font, "Ptr", rc, "Ptr", fmt, "Ptr", tb)
+            DllCall("gdiplus\GdipDeleteBrush", "Ptr", tb), DllCall("gdiplus\GdipDeleteStringFormat", "Ptr", fmt), DllCall("gdiplus\GdipDeleteFont", "Ptr", font)
+        }
+    }
+    DllCall("gdiplus\GdipResetClip", "Ptr", gr)
+    DllCall("gdiplus\GdipCreatePen1", "UInt", 0xFF000000 | Integer("0x" ring), "Float", Max(2, size / 30), "Int", 2, "Ptr*", &pen := 0)
+    DllCall("gdiplus\GdipDrawPath", "Ptr", gr, "Ptr", pen, "Ptr", p)
+    DllCall("gdiplus\GdipDeletePen", "Ptr", pen), DllCall("gdiplus\GdipDeletePath", "Ptr", p)
+    DllCall("gdiplus\GdipDeleteGraphics", "Ptr", gr)
+    DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", bmp, "Ptr*", &hbm := 0, "UInt", 0xFF000000 | Integer("0x" bgc))
+    DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
+    return hbm
+}
+
+;==============================================================================
+; Version locks: the FISCHXR team can lock a version of FISCHXR to a Discord
+; role (/version-lock in Discord). This copy checks at start, after signing in
+; and every 2 minutes; if its own version is locked and the account doesn't
+; have the role (or it's a guest), FISCHXR becomes the "Version locked" screen
+; until the lock is lifted or the role is given.
+;==============================================================================
+VLockStart() => VLock.Start()
+VLockCheckSoon() => VLock.Check()
+
+class VLock {
+    static g := 0, ticker := 0, roles := "", rolesAt := 0, lk := 0, own := [], pics := Map()
+
+    static Start() {
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Check")
+        SetTimer(this.ticker, 120000)
+        this.Check()
+    }
+
+    ; The lock on this version: {role, roleName}, or 0 (none, or can't tell).
+    static LockHere() {
+        if AuthTest.HasOwnProp("locks") {
+            f := AuthTest.locks
+            js := f()
+        } else {
+            if (AuthTest.noPrompt || RemoteUrl() = "")
+                return 0
+            try {
+                req := ComObject("WinHttp.WinHttpRequest.5.1")
+                req.Open("GET", RemoteUrl() "/locks", false)
+                req.SetTimeouts(4000, 4000, 4000, 4000)
+                req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
+                req.Send()
+                js := req.Status = 200 ? req.ResponseText : ""
+            } catch
+                js := ""
+        }
+        if (js = "")
+            return -1                                       ; (no answer: things stay as they are)
+        v := StrReplace(APP_VER, ".", "\.")
+        if RegExMatch(js, '"' v '"\s*:\s*\{"role":"(\d+)","roleName":"((?:[^"\\]|\\.)*)"\}', &m)
+            return {role: m[1], roleName: JsonUnescape(m[2])}
+        return 0
+    }
+
+    ; Whether the signed-in account has the role (asked of Discord, kept 5 minutes).
+    static HasRole(role) {
+        if (A_TickCount - this.rolesAt > 300000 || !this.rolesAt) {
+            tok := Unprotect(Cfg["AuthTok"])
+            if AuthTest.HasOwnProp("member") {
+                f := AuthTest.member, r := f(tok)
+            } else
+                r := DiscordMember(tok)
+            if (r.status = 200)
+                this.roles := r.HasOwnProp("roles") ? r.roles : "", this.rolesAt := A_TickCount
+            else if (r.status = 0 && this.rolesAt)
+                return InStr(this.roles, '"' role '"') > 0          ; (offline: as last time)
+            else
+                this.roles := "", this.rolesAt := A_TickCount
+        }
+        return InStr(this.roles, '"' role '"') > 0
+    }
+
+    static Check() {
+        if (Login.g || Blocked.g || AuthState.mode = "")
+            return                                          ; (sign-in or blacklist screen up)
+        lk := this.LockHere()
+        if (lk = -1)
+            return
+        if (!lk || (!IsGuest() && this.HasRole(lk.role)))
+            return this.g ? this.Lift() : 0
+        if (this.g && this.lk && this.lk.role = lk.role)
+            return
+        if this.g
+            this.Destroy()
+        this.Show(lk)
+    }
+
+    static Show(lk) {
+        this.lk := lk
+        if (Running || AqManual)
+            try StopMacro("This version of FISCHXR is locked")
+        try LogEvent("FISCHXR " APP_VER " is locked to the " (lk.roleName != "" ? lk.roleName : lk.role) " role")
+        px := "", py := ""
+        try Flyout.Close()
+        if (IsObject(MainGui) && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd))
+            WinGetPos(&px, &py, , , MainGui.Hwnd), MainGui.Hide()
+        try Hud.Hide()
+        guest := IsGuest()
+        g := Gui("-Caption +MinimizeBox" (Cfg["OnTop"] ? " +AlwaysOnTop" : ""), APP_NAME " - version locked")
+        g.BackColor := "000000", g.MarginX := 0, g.MarginY := 0
+        this.g := g, this.own := [], this.pics := Map()
+        SignArt.Start()
+        label := guest ? "Log in with |Discord" : "Open the FISCHXR |server"
+        this.Pic("bg", 0, 0, 540, 416, SignArt.LockedBackground(APP_VER, lk.roleName, guest), 0x04000000)
+        this.Pic("btn", 292, 337, 245, 67, SignArt.Button(label, 0, false, !guest))
+        this.Pic("link", 15, 368, 160, 26, SignArt.Link("Close FISCHXR", 0))
+        Clickables[this.pics["btn"].Hwnd] := {kind: "btn", obj: this.pics["btn"], bg: "000000", hv: "000000"
+            , fn: guest ? (*) => (VLock.Destroy(), Login.Show(CurTab)) : (*) => Run(DISCORD_INVITE)
+            , onHover: (hot) => VLock.SetPic("btn", SignArt.Button(label, hot ? 1 : 0, false, !guest))}
+        Clickables[this.pics["link"].Hwnd] := {kind: "btn", fn: (*) => ExitApp(), obj: this.pics["link"], bg: "000000", hv: "000000"
+            , onHover: (hot) => VLock.SetPic("link", SignArt.Link("Close FISCHXR", hot ? 1 : 0))}
+        SetFontFor(g, "norm s" FZ(HasIconFont ? 9 : 12) " c999999", HasIconFont ? "icon" : "body")
+        mn := g.Add("Text", Format("x{} y0 w{} h{} Center 0x200 Background000000", ZS(460), ZS(40), ZS(30)), IconOr(Chr(0xE921), "–"))
+        cl := g.Add("Text", Format("x{} y0 w{} h{} Center 0x200 Background000000", ZS(500), ZS(40), ZS(30)), IconOr(Chr(0xE8BB), "×"))
+        Clickables[mn.Hwnd] := {kind: "btn", fn: (*) => WinMinimize("ahk_id " VLock.g.Hwnd), obj: mn, bg: "000000", hv: "1C1C1C"}
+        Clickables[cl.Hwnd] := {kind: "btn", fn: (*) => ExitApp(), obj: cl, bg: "000000", hv: "C42B1C", hvText: "FFFFFF"}
+        this.own := [mn, cl, this.pics["btn"], this.pics["link"]]
+        DllCall("SetWindowPos", "Ptr", this.pics["bg"].Hwnd, "Ptr", 1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x13)
+        g.OnEvent("Close", (*) => ExitApp())
+        g.Show((px != "" ? Format("x{} y{} ", px, py) : "") "w" ZS(540) " h" ZS(416))
+        StyleWindow(g.Hwnd)
+        try ApplyAppIcon(g.Hwnd)
+    }
+
+    static Pic(name, x, y, w, h, hbm, style := 0) {
+        p := this.g.Add("Picture", Format("x{} y{} w{} h{}{}", ZS(x), ZS(y), ZS(w), ZS(h), style ? " +" style : ""), "HBITMAP:" hbm)
+        this.pics[name] := p
+        return p
+    }
+    static SetPic(name, hbm) {
+        if !(this.g && this.pics.Has(name))
+            return DllCall("DeleteObject", "Ptr", hbm)
+        hw := this.pics[name].Hwnd
+        old := SendMessage(0x172, 0, hbm, hw), cur := SendMessage(0x173, 0, 0, hw)
+        if (old && old != cur)
+            DllCall("DeleteObject", "Ptr", old)
+        if (cur != hbm)
+            DllCall("DeleteObject", "Ptr", hbm)
+    }
+
+    ; Unlocked (or the role came): FISCHXR comes back where it was.
+    static Lift() {
+        px := "", py := ""
+        if this.g
+            try WinGetPos(&px, &py, , , this.g.Hwnd)
+        this.Destroy()
+        try LogEvent("FISCHXR " APP_VER " isn't locked for you any more")
+        ShowMain(Pages.Has(CurTab) ? CurTab : "Home", px, py)
+    }
+
+    static Destroy() {
+        g := this.g, this.g := 0, this.lk := 0
+        for c in this.own
+            if IsObject(c)
+                try Clickables.Delete(c.Hwnd)
+        this.own := [], this.pics := Map()
+        if g
+            try g.Destroy()
+        SignArt.Release()
+    }
 }
 
