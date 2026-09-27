@@ -1,7 +1,7 @@
 {
-  "version": "5.2.9",
+  "version": "5.3.0",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "2ef0306cd72deaa660c265db7377630936af7c9d720015588c9aad28d9c9ee0d",
-  "notes": "Noiseform: the bar is measured fresh on every reel, and frozen bar or fish readings are ignored.",
+  "sha256": "f31728ae5f5f542034452c284dd7b834b93b491d4357b38f32cc2a182d29f027",
+  "notes": "/start and /stop from Discord, Ruinous Oath support, two new Plus themes (Aurora, Abyss) and richer effects, and updates locked to the official GitHub.",
   "api": "https://fischxr-api.exoartar.workers.dev/"
 }

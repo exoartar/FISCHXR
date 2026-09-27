@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.2.9"
+APP_VER := "5.3.0"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -187,7 +187,7 @@ NumSpec := Map(
 ; saved about rods. greenBar: green inside the bar counts as bar, and the
 ; fish is aimed at that green zone (Verdant Oath).
 RodLib := [
-    {id: "standard",    name: "Standard",               fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36"], bt: 6},
+    {id: "standard",    name: "Standard",               fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36", "F8E8E0", "F8D0C8", "F8B8B0", "F8A098", "F89088", "F8786C", "F86050", "F8503C", "F84028", "F82C14", "F81800", "F81000"], bt: 6},
     {id: "verdant",     name: "Verdant Oath",           kind: "wood", fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D"], bt: 5, greenBar: true},
     {id: "halibut",     name: "Halibut Harpoon",        fish: ["0D0B0B"], ft: 5,  bar: ["5D52A8"], bt: 5},
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
@@ -255,8 +255,7 @@ if OldLayout {
     try IniWrite(Cfg["WinW"], IniPath, "Settings", "WinW"), IniWrite(Cfg["WinH"], IniPath, "Settings", "WinH")
 }
 try IniWrite(3, IniPath, "Settings", "UiVersion")
-if (Trim(Cfg["UpdateUrl"]) = "")             ; an empty saved link means the built-in one
-    Cfg["UpdateUrl"] := UPDATE_URL
+Cfg["UpdateUrl"] := UPDATE_URL                 ; (always the official GitHub update file: it can't be changed)
 LoadRodMemory()
 LoadTotems()
 ResolveTheme()
@@ -2473,7 +2472,6 @@ BuildSettings() {
     half := (LEFT_W - 12) // 2
     ActionBtn("Settings", 6, "Check for updates", (*) => SetTimer(CheckForUpdate.Bind(false), -1), "Checks the update link for a newer version and shows what changed.", PAD, half)
     ActionBtn("Settings", 6, "What's new", (*) => ShowWhatsNew(), "Shows the changes in this version.", PAD + half + 12, half)
-    EditRow("Settings", 7, "UpdateUrl", "Update link", "The address of the update file (update.json). Whoever controls it controls what the macro installs.")
     Pages["Settings"].desc := ""
 }
 
@@ -8095,13 +8093,15 @@ IsRedBar(b, bl, br) {
 ; Whether a standard reel's bar (white while the fish is in it) is tinted
 ; (red, tan...: the fish is outside it).
 IsTintedBar(b, bl, br) {
-    t := 0, n := 0, x := bl
+    ; (only a dim tint: red, tan... A lit coloured bar, like Ruinous Oath's
+    ; pink-to-red one, keeps a bright red channel and has the fish in it.)
+    t := 0, rs := 0, n := 0, x := bl
     while (x <= br) {
         c := NumGet(b.cols, x * 4, "UInt")
-        t += (2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3, n++
+        t += (2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3, rs += (c >> 16) & 255, n++
         x += 2
     }
-    return n && t / n < 170
+    return n && t / n < 170 && rs / n < 170
 }
 
 
@@ -9333,6 +9333,13 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.3.0
+- Start and stop fishing from Discord with /start and /stop (your macro answers within about 45 seconds).
+- Ruinous Oath is followed all the way: its bar turns from white to pink to red as it shrinks, and FISCHXR now knows every shade of it.
+- Two new Plus themes: Aurora (drifting northern lights) and Abyss (rising bubbles).
+- Plus effects are richer: Sakura petals have depth and a soft glow, Emerald fireflies leave trails, Sunset embers flicker and throw the odd big spark.
+- Updates always come from the official FISCHXR GitHub; the update link can no longer be changed.
+
 5.2.9
 - Noiseform: the bar is measured fresh on every reel. Its width changes from fish to fish, and reusing an earlier reel's width could make FISCHXR read part of the green emblem as the bar (and lose the fish).
 - Noiseform: a bar reading that doesn't move while the mouse is held or let go is ignored (the bar always moves then), and a "fish" that's really part of the reel's fixed picture is ignored too.
@@ -11321,7 +11328,13 @@ PlusThemeSet() {
             wait: "F2B24C", stop: "FF7A6E", focus: "FFFFFF", ring: 2, dark: true},
         "Sunset", {strip: "140A06", bar: "26140D", seam: "3D2215", content: "1E100A", field: "301B11", fieldHi: "402418",
             divider: "3D2317", text: "FFF0E6", dim: "D6AE96", faint: "8A6552", accent: "FF9A4A", accentHi: "FFBA80", ink: "2A1003",
-            wait: "F2B24C", stop: "FF6E6E", focus: "FFFFFF", ring: 2, dark: true})
+            wait: "F2B24C", stop: "FF6E6E", focus: "FFFFFF", ring: 2, dark: true},
+        "Aurora", {strip: "050D12", bar: "0D1A22", seam: "16303A", content: "09141B", field: "132631", fieldHi: "1B3441",
+            divider: "1B3240", text: "E6FBFF", dim: "9CC6CF", faint: "587A83", accent: "3FE0C8", accentHi: "7EEEDD", ink: "03201C",
+            wait: "F2B24C", stop: "FF7A6E", focus: "FFFFFF", ring: 2, dark: true},
+        "Abyss", {strip: "03070F", bar: "0A1426", seam: "13233F", content: "060E1C", field: "0F1C33", fieldHi: "172947",
+            divider: "162745", text: "E3F0FF", dim: "93AED6", faint: "506690", accent: "4FA3FF", accentHi: "8CC4FF", ink: "04142E",
+            wait: "F2B24C", stop: "FF7A6E", focus: "FFFFFF", ring: 2, dark: true})
     return t
 }
 
@@ -11354,8 +11367,8 @@ BuildPlus() {
         , "How bright the glow is, or a slow pulse.")
     Toggle("Plus", 3, "PlusGlowRun", "Running light", "Two bright streaks race around the border.")
     Choice("Plus", 4, "PlusTheme", "Plus theme", [["", "Off (your theme)"], ["Sakura", "Sakura"], ["Midnight", "Midnight"]
-        , ["Emerald", "Emerald"], ["Sunset", "Sunset"]], "Colour themes only Plus has, each with its own effect. Off keeps the theme from Settings.")
-    Toggle("Plus", 5, "PlusEffects", "Theme effects", "Sakura petals, Midnight stars, Emerald fireflies, Sunset embers.")
+        , ["Emerald", "Emerald"], ["Sunset", "Sunset"], ["Aurora", "Aurora"], ["Abyss", "Abyss"]], "Colour themes only Plus has, each with its own effect. Off keeps the theme from Settings.")
+    Toggle("Plus", 5, "PlusEffects", "Theme effects", "Petals, stars, fireflies, embers, northern lights and bubbles.")
     EditRow("Plus", 6, "PlusAccent", "Custom accent", "Your own accent colour, as a code like FF4FD8, then Enter. Leave it empty for the theme's own.")
     Toggle("Plus", 7, "PlusQuickRecast", "Quick recast", "Casts again 0.3 s after a catch instead of waiting a full second.")
     Choice("Plus", 8, "PlusPanelCorner", "Fishing panel corner", [["TR", "Top right"], ["TL", "Top left"], ["BR", "Bottom right"], ["BL", "Bottom left"]]
@@ -11610,7 +11623,7 @@ SetDwmBorder(hwnd, rgb) {
 ;------------------------------------------------------------------------------
 class PlusFx {
     static g := 0, owner := 0, ticker := 0, dc := 0, hbm := 0, old := 0, gp := 0, gr := 0, W := 0, H := 0
-    static parts := [], kind := "", last := 0, frames := 0, shoot := 0
+    static parts := [], kind := "", last := 0, frames := 0, shoot := 0, sparks := []
 
     static Want() => IsPlus() && Cfg["PlusEffects"] && !Cfg["ReduceMotion"] && PlusThemeSet().Has(Cfg["PlusTheme"])
         && IsSet(MainGui) && IsObject(MainGui) && UiReady && !Login.g
@@ -11658,6 +11671,8 @@ class PlusFx {
             case "Midnight": this.Stars(dt, now)
             case "Emerald":  this.Fireflies(dt, now)
             case "Sunset":   this.Embers(dt)
+            case "Aurora":   this.Ribbons(dt, now)
+            case "Abyss":    this.Bubbles(dt)
         }
         bl := Buffer(4, 0), NumPut("UChar", 0, bl, 0), NumPut("UChar", 0, bl, 1), NumPut("UChar", 255, bl, 2), NumPut("UChar", 1, bl, 3)
         pt := Buffer(8), sz := Buffer(8), src := Buffer(8, 0)
@@ -11697,7 +11712,11 @@ class PlusFx {
     static Seed(kind) {
         this.kind := kind, this.parts := [], this.shoot := 0
         s := A_ScreenDPI / 96, W := this.W, H := this.H
-        n := Map("Sakura", 14, "Midnight", 28, "Emerald", 12, "Sunset", 18)[kind]
+        n := Map("Sakura", 16, "Midnight", 30, "Emerald", 12, "Sunset", 20, "Aurora", 3, "Abyss", 18)[kind]
+        this.sparks := []                                           ; (Aurora's twinkles)
+        if (kind = "Aurora")
+            loop 12
+                this.sparks.Push(this.Spawn("Midnight", W, H, s, true))
         loop n
             this.parts.Push(this.Spawn(kind, W, H, s, true))
     }
@@ -11705,16 +11724,23 @@ class PlusFx {
         R(a, b) => a + Random() * (b - a)
         switch kind {
             case "Sakura":
-                return {x: R(0, W), y: anywhere ? R(-20, H) : -12 * s, vx: R(-12, 12) * s, vy: R(22, 42) * s, rot: R(0, 360), vr: R(-90, 90)
-                    , size: R(8, 13) * s, a: Round(R(130, 195)), c: ["FFB7D5", "FF9CC8", "FFD1E3", "FFC4DD"][Random(1, 4)], sway: R(0, 6.28)}
+                z := R(0.6, 1.4)                                    ; (depth: near petals are bigger, faster, brighter)
+                return {x: R(0, W), y: anywhere ? R(-20, H) : -12 * s, vx: R(-12, 12) * s * z, vy: R(22, 42) * s * z, rot: R(0, 360), vr: R(-90, 90)
+                    , size: R(8, 13) * s * z, a: Round(R(110, 175) * (0.7 + 0.3 * z)), c: ["FFB7D5", "FF9CC8", "FFD1E3", "FFC4DD"][Random(1, 4)], sway: R(0, 6.28)}
             case "Midnight":
                 return {x: R(0, W), y: R(0, H), size: R(1.8, 3.4) * s, ph: R(0, 6.28), sp: R(0.8, 2.4), c: ["FFFFFF", "CFE0FF", "E8EEFF"][Random(1, 3)]}
             case "Emerald":
                 return {x: R(0, W), y: R(0, H), vx: R(-14, 14) * s, vy: R(-14, 14) * s, size: R(2.6, 4) * s, ph: R(0, 6.28), sp: R(1.5, 3)
                     , c: ["B8FF6A", "7CFFB0", "D6FF8A"][Random(1, 3)]}
             case "Sunset":
-                return {x: R(0, W), y: anywhere ? R(0, H) : H + 8 * s, vy: -R(22, 44) * s, size: R(2.4, 4.4) * s, ph: R(0, 6.28)
+                big := Random(1, 12) = 1                            ; (now and then a big spark)
+                return {x: R(0, W), y: anywhere ? R(0, H) : H + 8 * s, vy: -R(22, 44) * s * (big ? 0.7 : 1), size: R(2.4, 4.4) * s * (big ? 2 : 1), ph: R(0, 6.28)
                     , c: ["FFB347", "FF8A3D", "FFD27A"][Random(1, 3)]}
+            case "Aurora":
+                return {yb: R(0.15, 0.55) * H, amp: R(14, 30) * s, k: R(0.006, 0.013) / s, ph: R(0, 6.28), sp: R(0.25, 0.6)
+                    , c: ["3FE0C8", "A970FF", "4FE38A"][Random(1, 3)]}
+            case "Abyss":
+                return {x: R(0, W), y: anywhere ? R(0, H) : H + 10 * s, vy: -R(16, 42) * s, r: R(2, 7) * s, ph: R(0, 6.28)}
         }
     }
 
@@ -11734,6 +11760,9 @@ class PlusFx {
                 this.parts[i] := p := this.Spawn("Sakura", this.W, this.H, s)
             DllCall("gdiplus\GdipTranslateWorldTransform", "Ptr", this.gr, "Float", p.x, "Float", p.y, "Int", 0)
             DllCall("gdiplus\GdipRotateWorldTransform", "Ptr", this.gr, "Float", p.rot, "Int", 0)
+            DllCall("gdiplus\GdipCreateSolidFill", "UInt", this.Col(p.c, p.a * 0.18), "Ptr*", &gb := 0)      ; (a soft glow)
+            DllCall("gdiplus\GdipFillEllipse", "Ptr", this.gr, "Ptr", gb, "Float", -p.size, "Float", -p.size * 0.6, "Float", p.size * 2, "Float", p.size * 1.2)
+            DllCall("gdiplus\GdipDeleteBrush", "Ptr", gb)
             DllCall("gdiplus\GdipCreateSolidFill", "UInt", this.Col(p.c, p.a), "Ptr*", &br := 0)
             DllCall("gdiplus\GdipFillEllipse", "Ptr", this.gr, "Ptr", br, "Float", -p.size / 2, "Float", -p.size * 0.3, "Float", p.size, "Float", p.size * 0.6)
             DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
@@ -11774,9 +11803,62 @@ class PlusFx {
             if (p.y < 0 || p.y > this.H)
                 p.vy := -p.vy, p.y := Max(0, Min(this.H, p.y))
             glow := 0.35 + 0.65 * (0.5 + 0.5 * Sin(p.ph + t * p.sp))
+            if !p.HasOwnProp("tr")
+                p.tr := []
+            p.tr.Push([p.x, p.y])                                   ; (a short fading trail)
+            if (p.tr.Length > 6)
+                p.tr.RemoveAt(1)
+            for i, q in p.tr
+                this.Dot(q[1], q[2], p.size * 0.8, this.Col(p.c, 70 * glow * i / p.tr.Length))
             this.Dot(p.x, p.y, p.size * 5, this.Col(p.c, 26 * glow))
             this.Dot(p.x, p.y, p.size * 2.4, this.Col(p.c, 60 * glow))
             this.Dot(p.x, p.y, p.size, this.Col(p.c, 210 * glow))
+        }
+    }
+
+    ; Aurora: ribbons of northern light drifting slowly, and faint twinkles.
+    static Ribbons(dt, now) {
+        s := A_ScreenDPI / 96, t := now / 1000
+        for sp in this.sparks {
+            tw := Abs(Sin(sp.ph + t * sp.sp))
+            this.Dot(sp.x, sp.y, sp.size * (0.6 + 0.4 * tw), this.Col("E6FBFF", 30 + 120 * tw))
+        }
+        for p in this.parts {
+            ; each glow layer is one wave-shaped band (top edge, then the bottom
+            ; edge back): a handful of shapes a frame, not hundreds of strips
+            st := 12 * s, n := Ceil(this.W / st) + 1, ys := []
+            loop n {
+                x := (A_Index - 1) * st
+                ys.Push(p.yb + p.amp * Sin(p.k * x + p.ph + t * p.sp) + p.amp * 0.4 * Sin(0.5 * p.k * x - t * p.sp * 0.7))
+            }
+            a := 0.7 + 0.3 * Sin(t * 0.8 + p.ph)
+            for layer in [[64, 9], [30, 16], [12, 26]] {
+                h := layer[1] * s / 2, pts := Buffer(n * 2 * 8)
+                loop n
+                    NumPut("Float", (A_Index - 1) * st, "Float", ys[A_Index] - h, pts, (A_Index - 1) * 8)
+                loop n {
+                    i := n - A_Index + 1
+                    NumPut("Float", (i - 1) * st, "Float", ys[i] + h, pts, (n + A_Index - 1) * 8)
+                }
+                DllCall("gdiplus\GdipCreateSolidFill", "UInt", this.Col(p.c, layer[2] * a), "Ptr*", &br := 0)
+                DllCall("gdiplus\GdipFillPolygon", "Ptr", this.gr, "Ptr", br, "Ptr", pts, "Int", n * 2, "Int", 0)
+                DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+            }
+        }
+    }
+
+    ; Abyss: bubbles rising and wobbling, catching the light.
+    static Bubbles(dt) {
+        s := A_ScreenDPI / 96
+        for i, p in this.parts {
+            p.ph += dt * 2.2, p.y += p.vy * dt, p.x += Sin(p.ph) * 12 * s * dt
+            if (p.y < -p.r * 2)
+                this.parts[i] := p := this.Spawn("Abyss", this.W, this.H, s)
+            this.Dot(p.x, p.y, p.r * 2, this.Col("7FD8FF", 34))
+            DllCall("gdiplus\GdipCreatePen1", "UInt", this.Col("A8E6FF", 130), "Float", Max(1, 1.2 * s), "Int", 2, "Ptr*", &pen := 0)
+            DllCall("gdiplus\GdipDrawEllipse", "Ptr", this.gr, "Ptr", pen, "Float", p.x - p.r, "Float", p.y - p.r, "Float", p.r * 2, "Float", p.r * 2)
+            DllCall("gdiplus\GdipDeletePen", "Ptr", pen)
+            this.Dot(p.x - p.r * 0.35, p.y - p.r * 0.35, Max(1.2 * s, p.r * 0.45), this.Col("FFFFFF", 150))
         }
     }
 
@@ -11787,9 +11869,9 @@ class PlusFx {
             p.ph += dt * 2, p.y += p.vy * dt, p.x += Sin(p.ph) * 10 * s * dt
             if (p.y < -8 * s)
                 this.parts[i] := p := this.Spawn("Sunset", this.W, this.H, s)
-            life := Max(0, Min(1, p.y / this.H))
-            this.Dot(p.x, p.y, p.size * 3, this.Col(p.c, 30 * life))
-            this.Dot(p.x, p.y, p.size, this.Col(p.c, 60 + 170 * life))
+            life := Max(0, Min(1, p.y / this.H)), fl := 0.75 + 0.25 * Sin(p.ph * 6)     ; (a flicker)
+            this.Dot(p.x, p.y, p.size * 3, this.Col(p.c, 30 * life * fl))
+            this.Dot(p.x, p.y, p.size, this.Col(p.c, (60 + 170 * life) * fl))
         }
     }
 }
@@ -11821,7 +11903,7 @@ RemoteSpec() {
         "plus-glow-color", {key: "PlusGlowColor", kind: "choice", plus: true, opts: [["Pink", "Pink"], ["Purple", "Purple"], ["Blue", "Blue"], ["Cyan", "Cyan"], ["Green", "Green"], ["Gold", "Gold"], ["Red", "Red"], ["White", "White"]]},
         "plus-glow-run", {key: "PlusGlowRun", kind: "bool", plus: true},
         "plus-glow-style", {key: "PlusGlowStyle", kind: "choice", plus: true, opts: [["Soft", "Soft"], ["Medium", "Medium"], ["Strong", "Strong"], ["Pulsing", "Pulsing"]]},
-        "plus-theme", {key: "PlusTheme", kind: "choice", plus: true, opts: [["off", ""], ["Sakura", "Sakura"], ["Midnight", "Midnight"], ["Emerald", "Emerald"], ["Sunset", "Sunset"]]},
+        "plus-theme", {key: "PlusTheme", kind: "choice", plus: true, opts: [["off", ""], ["Sakura", "Sakura"], ["Midnight", "Midnight"], ["Emerald", "Emerald"], ["Sunset", "Sunset"], ["Aurora", "Aurora"], ["Abyss", "Abyss"]]},
         "plus-accent", {key: "PlusAccent", kind: "hex", plus: true},
         "theme-effects", {key: "PlusEffects", kind: "bool", plus: true},
         "quick-recast", {key: "PlusQuickRecast", kind: "bool", plus: true},
@@ -11847,7 +11929,7 @@ class Remote {
     static Start() {
         if !this.ticker
             this.ticker := ObjBindMethod(this, "Poll"), this.waiter := ObjBindMethod(this, "Wait")
-        SetTimer(this.ticker, 120000)                       ; every 2 minutes while signed in
+        SetTimer(this.ticker, 45000)                        ; every 45 s while signed in (so /start and /stop answer quickly)
         SetTimer(RemoteReportSoon, -3000)
     }
     static Stop() {
@@ -12003,6 +12085,18 @@ RemoteSettings(js) {
 RemoteSet(name, v) {
     global CurRodName, CurRodLib
     spec := RemoteSpec()
+    ; /start and /stop in Discord
+    if (name = "macro") {
+        if (v = "start") {
+            SetTimer(() => (Running ? 0 : ToggleMacro()), -50)
+            return "Started from Discord (/start)"
+        }
+        if (v = "stop") {
+            SetTimer(() => (Running ? ToggleMacro() : 0), -50)
+            return "Stopped from Discord (/stop)"
+        }
+        return "Ignored a /start or /stop FISCHXR didn't understand: " v
+    }
     if !spec.Has(name)
         return "Ignored a setting from Discord FISCHXR doesn't know: " name
     s := spec[name], key := s.key
