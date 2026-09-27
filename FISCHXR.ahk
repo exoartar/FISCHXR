@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.1.6"
+APP_VER := "5.2.9"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -139,7 +139,7 @@ Defaults := Map(
     "AutoReconnect", 0, "RejoinLink", "roblox://experiences/start?placeId=16732694052", "RejoinWait", 40,
     "AuthMode", "", "AuthTok", "", "AuthExp", 0, "AuthName", "", "AuthId", "", "RodManual", "",
     "AuthScope", "", "GuildId", "", "PlusCached", 0, "PlusAccess", "", "ApiUrl", "", "ApiSeq", 0,
-    "AuthUser", "", "AuthAvatar", "", "Blocked", 0, "BlockedReason", "", "LifeCasts", 0, "LifeReels", 0, "LifeSecs", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium", "PlusGlowRun", 1,
+    "AuthUser", "", "AuthAvatar", "", "Blocked", 0, "BlockedReason", "", "LifeCasts", 0, "LifeReels", 0, "LifeSecs", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium", "PlusGlowRun", 1, "PlusEffects", 1,
     "PlusTheme", "", "PlusAccent", "", "PlusQuickRecast", 0, "PlusRate", 1, "PlusPanelCorner", "TR",
     "RejoinMax", 4, "RejoinResume", 1, "ReelSnaps", 1,
     "MiniHud", 1, "UpdateUrl", UPDATE_URL, "AutoUpdate", 1, "LastVersion", ""
@@ -187,7 +187,7 @@ NumSpec := Map(
 ; saved about rods. greenBar: green inside the bar counts as bar, and the
 ; fish is aimed at that green zone (Verdant Oath).
 RodLib := [
-    {id: "standard",    name: "Standard",               fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587"], bt: 6},
+    {id: "standard",    name: "Standard",               fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36"], bt: 6},
     {id: "verdant",     name: "Verdant Oath",           kind: "wood", fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D"], bt: 5, greenBar: true},
     {id: "halibut",     name: "Halibut Harpoon",        fish: ["0D0B0B"], ft: 5,  bar: ["5D52A8"], bt: 5},
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
@@ -225,7 +225,7 @@ ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999, Rem
 DISCORD_CLIENT_ID := "1552771662787903568", DISCORD_PORT := 53682, DISCORD_INVITE := "https://discord.gg/ERkjTTYG4B"
 GUEST_TABS := ["Aquarium", "Sovereign", "Alerts", "Reconnect"]      ; (totems are open to guests)
 AuthState := {mode: "", id: "", name: "", user: "", avatar: "", plus: false, plusWhy: "", access: "", blockMsg: ""}
-FISCHXR_GUILD_ID := ""        ; the FISCHXR server's ID (found from the invite when empty)
+FISCHXR_GUILD_ID := "1552635887089745982"   ; the FISCHXR server's ID
 FISCHXR_API := ""             ; the FISCHXR service (read from update.json's "api" when empty)
 ; (a test harness may set AuthTest before loading the macro)
 AuthTest := IsSet(AuthTest) ? AuthTest : {noPrompt: false, noBrowser: false, me: 0, state: "", opened: "", mode: ""}
@@ -519,6 +519,7 @@ StartMacro() {
     SetTimer(RemoteReportSoon, -1500)
     global Running, RobloxHwnd, SovReels, ReconnectWhy, LogFile
     UsePhysicalPixels()
+    ForgetRod()                                        ; (the rod is read again before the first cast: it may have been swapped)
     hwnd := FindRoblox()
     if !hwnd {
         SetPhase("error", "Roblox isn't open", "Open Fisch, then press " KeyName(Cfg["ToggleKey"]) ".")
@@ -696,7 +697,7 @@ MacroLoop() {
             ; (right after a choice, or with a rod whose reel waits for a
             ; click, a bar that didn't answer is given more goes, with the
             ; mouse clear, rather than cast over)
-            while (Running && (!res.phantom || chose || InStr(CurRodName, "Splitbranch")) && resumes < 3 && ReelStillUp(b, geo, found.prof)) {
+            while (Running && (!res.phantom || chose || InStr(CurRodName, "Splitbranch")) && resumes < 5 && ReelStillUp(b, geo, found.prof)) {
                 resumes++
                 if res.phantom
                     ReelMouseSpot(true)
@@ -731,6 +732,18 @@ MacroLoop() {
             SetPhase("cast", "Reel finished", "Casting again shortly.")
             if !Nap(RecastGap())
                 break
+            ; One last look before casting: a reel still up is reeled, never cast
+            ; over. (Not after a fresh start: its picture is made again first.)
+            if (Running && IsObject(b) && ReelStillUp(b, geo, found.prof)) {
+                LogVision("A reel is still up before casting; reeling it instead")
+                LogEvent("The reel was still going: kept reeling instead of casting")
+                SetPhase("reel", "Reeling", "Rod: " found.prof.name)
+                ReelMouseSpot(A_TickCount - ChoseFishAt < 15000)
+                Reel(b, geo, base, found)
+                lastProgress := A_TickCount
+                if !Nap(RecastGap())
+                    break
+            }
         }
     } catch as err {
         StopMacro("Something went wrong: " err.Message)
@@ -816,7 +829,8 @@ ShakeUntilReel(b, geo, base) {
         navOn := true
     }
     global CurRodLib
-    hits := 0, lastShake := 0, lastNote := 0, lastLearn := 0, why := "", quiet := QuietRod(), chT := 0
+    static fbLib := "", fbN := 0                        ; (a fallback style, and how many reels in a row it fit)
+    hits := 0, lastShake := 0, lastNote := 0, lastLearn := 0, why := "", quiet := QuietRod(), chT := 0, chAt := 0, offCentre := 0
     choiceAt := 0, picks := 0, lastChoiceLook := 0
     ; the rod's name decides its reel style; while it's unknown, read it again
     if (CurRodName = "" && A_TickCount - RodReadAt > 20000)
@@ -828,21 +842,46 @@ ShakeUntilReel(b, geo, base) {
         r := 0
         changed := RowDiff(b, base) > 0.25
         if changed {
+            if !chAt
+                chAt := A_TickCount
             r := MatchPrecoded(b, geo)
-            ; the reel is clearly up but the rod's style doesn't fit it (a
-            ; misread rod name): after 1.5 s every style is tried, and the one
-            ; that fits is used from then on
+            ; A reel always starts with the bar and the fish in the middle (the
+            ; bar starts falling at once, so only just after it appears): in
+            ; the first 0.4 s, a "reel" read far from the middle isn't one (an
+            ; effect, scenery at the edge, a half-drawn frame): it's ignored.
+            if (r && A_TickCount - chAt < 400 && !ReelCentred(r.d, b.w)) {
+                if (++offCentre = 1)
+                    LogVision(Format("Something that looks like the {} reel appeared, but not centred (bar {}-{}, fish {}): not the reel", r.prof.name, r.d.bl, r.d.br, Round(r.d.fx)))
+                r := 0
+            }
+            ; The reel is clearly up but the rod's style doesn't fit it: after
+            ; 1.5 s other styles are tried. A known rod only falls back to a
+            ; colour style (the shape styles are those rods' own reels: a
+            ; standard rod can't show a Noiseform reel); only an unknown or
+            ; misread rod may fall back to any. The style found is used for
+            ; this reel, and kept for good only if it fits two reels in a row.
             if !r {
                 if !chT
                     chT := A_TickCount
-                else if (CurRodLib != "" && A_TickCount - chT > 1500 && (r := MatchPrecoded(b, geo, true))) {
-                    try LogEvent("This reel is the " RodById(r.prof.lib).name " style, not the " RodById(CurRodLib).name " style: using it")
-                    CurRodLib := r.prof.lib
-                    try RodsChanged()
+                else if (CurRodLib != "" && A_TickCount - chT > 1500 && (r2 := MatchPrecoded(b, geo, true))) {
+                    known := Cfg["RodManual"] != "" || (CurRodName != "" && FixRodName(CurRodName).known)
+                    if (known && r2.prof.HasOwnProp("kind") && r2.prof.kind != "") {
+                        if (A_TickCount - lastLearn > 4000)
+                            LogVision("A " RodById(r2.prof.lib).name " reel was read, but " CurRodName " doesn't use it: not taken")
+                    } else {
+                        r := r2
+                        fbN := (fbLib = r.prof.lib) ? fbN + 1 : 1, fbLib := r.prof.lib
+                        if (fbN >= 2) {
+                            try LogEvent("Two reels in a row were the " RodById(fbLib).name " style, not " RodById(CurRodLib).name ": using it from now on")
+                            CurRodLib := fbLib, fbN := 0
+                            try RodsChanged()
+                        } else
+                            try LogEvent("This reel looks like the " RodById(fbLib).name " style: used for this reel")
+                    }
                 }
             }
         } else
-            chT := 0
+            chT := 0, chAt := 0
         if changed {
             if (!r && A_TickCount - lastLearn > 4000) {
                 lastLearn := A_TickCount
@@ -952,7 +991,7 @@ ReelStillUp(b, geo, p) {
         ; shape-read rods (Noiseform, Pinion's Aria) are present when their shape is:
         ; their tubes have no crisp outline to check
         ep := p.kind != "" ? -1 : EdgesPresent(b, geo, p)
-        hits += (ep = 1) || (d.bar && d.cover >= 0.8 && ep != 0)
+        hits += (ep = 1) || (d.bar && d.cover >= 0.8 && ep != 0) || (p.kind != "" && d.fish)
         Sleep 40
     }
     return hits >= 2
@@ -999,10 +1038,12 @@ Reel(b, geo, base, r) {
     est := {aH: 3.0 * w / 1e6, aR: 3.0 * w / 1e6, wH: 0.2, wR: 0.2, nH: 0, nR: 0, fits: 0}
     lag := LagEstimator(L)
     holding := false, tSwitch := QPC() - 1000, sw := [[tSwitch, false]]
-    c := -1, v := 0, tC := 0, f := -1, fv := 0, tF := 0, aim := "fish", lastAim := "fish", jumpTo := -1
+    ; (a reel starts with the fish in the middle: the fish tracker does too, so
+    ; a first reading far from it has to be confirmed before it's believed)
+    c := -1, v := 0, tC := 0, f := b.w / 2, fv := 0, tF := 0, aim := "fish", lastAim := "fish", jumpTo := -1
     lastBl := -2, lastBr := -2, lastFx := -2, tFrame := 0, vmaxSeen := 0
     widths := [], bw := 0, memKey := "", segT := [], segX := []
-    t0 := A_TickCount, lastUI := t0, lastDash := 0, frame := 0, ep := -1, good := 0
+    t0 := A_TickCount, lastUI := t0, lastDash := 0, frame := 0, ep := -1, good := 0, barSeen := t0, frzC := -1, frzT := t0
     ; Splitbranch Twig's reel waits for a click ("Click & Hold Anywhere!")
     ; after a fish is chosen: it gets one at once, and a bar that doesn't move
     ; in its first 3 s isn't taken for scenery.
@@ -1031,6 +1072,16 @@ Reel(b, geo, base, r) {
         if (frame > 0 || !IsObject(d)) {
             VisionGrab(b, geo)
             d := VisionScan(b, p, f)
+            ; Noiseform: a "bar" that stays put while the mouse has been held
+            ; (or let go) for 0.45 s, away from both ends, can't be the bar
+            ; (it would be moving): the emblem read as one. Steer by prediction.
+            if (p.kind = "box" && d.bar) {
+                cm0 := (d.bl + d.br) / 2
+                if (Abs(cm0 - frzC) > 4)
+                    frzC := cm0, frzT := A_TickCount
+                else if (A_TickCount - frzT >= 450 && QPC() - tSwitch >= 450 && d.bl > 3 && d.br < b.w - 4)
+                    d.bar := false, d.cover := 0
+            }
             ; Verdant Oath: aim the fish at the green zone, not the bar's centre
             if (p.greenBar && d.bar && d.fish && (gz := (d.HasOwnProp("zc") ? d.zc : GreenZone(b, d))) >= 0)
                 d.fx -= gz - (d.bl + d.br) / 2
@@ -1069,7 +1120,19 @@ Reel(b, geo, base, r) {
         ; leftover scenery after the catch can't hold the reel open.
         if (ep = 1)
             sawEdges := true
+        ; Shape-read rods (Noiseform, Pinion's Aria, Requiem, Verdant, Apollo)
+        ; have no outline: their bar can go unread for a moment (at night, in
+        ; a zone, when it goes dark with the fish outside). Their fish keeps the
+        ; reel present meanwhile, for up to 2 s after the bar was last seen, so
+        ; a reel isn't counted as caught while it's still going.
+        if (ep = -1 && d.bar && d.cover >= 0.6)
+            barSeen := now
+        ; A standard reel's bar tinted (the fish outside it) at the width it has
+        ; had keeps the reel present even if the outline check misses (the
+        ; tinted bar can cover the track's edge). A catch's bar isn't tinted.
         present := (ep = 1) || (ep = -1 && d.cover >= 0.6) || (!sawEdges && ep = 0 && d.bar && d.cover >= 0.85)
+            || (ep = -1 && d.fish && now - barSeen < 2000)
+            || (d.bar && bw > 0 && p.lib = "standard" && Abs(d.br - d.bl + 1 - bw) <= 0.2 * bw && IsTintedBar(b, d.bl, d.br))
         ; What the macro saw this frame, for the reel-end record.
         if snaps {
             trail.Push(Format("{:6d}  outline {:2d}  fit {:.2f}  bar {} {}-{}  fish {} {}  present {}  held {}"
@@ -1695,6 +1758,16 @@ ForgetRod() {
         CurRodName := "", CurRodLib := "", RodReadAt := 0
 }
 
+; Whether a reading has the bar and the fish near the middle, as every reel
+; starts (their centres within a quarter of the track of the middle).
+ReelCentred(d, w) {
+    if !(d.bar && w)
+        return false
+    if (Abs((d.bl + d.br) / 2 / w - 0.5) > 0.25)
+        return false
+    return !d.fish || Abs(d.fx / w - 0.5) <= 0.25
+}
+
 
 ;==============================================================================
 ; Auto aquarium. Opens Fisch's aquarium panel, scrolls through the fish food
@@ -2270,11 +2343,10 @@ BuildHome() {
     x := PAGE_X, w := LEFT_W
     UI.dStatus := AddT("Home", x, 72, w, 36, "Ready", "display", 18, Pal.text, Pal.content, "0x200")
     UI.dDetail := AddT("Home", x, 108, w, 34, IdleHint(), "body", 9, Pal.dim, Pal.content)
-    UI.gFish := AddT("Home", x + 170, 146, 3, 7, "", "body", 9, Pal.text, Pal.faint)
-    UI.gL := AddT("Home", x, 155, 10, 12, "", "body", 9, Pal.text, Pal.field)
-    UI.gBar := AddT("Home", x + 10, 155, 10, 12, "", "body", 9, Pal.text, Pal.faint)
-    UI.gR := AddT("Home", x + 20, 155, 10, 12, "", "body", 9, Pal.text, Pal.field)
-    UI.gCtr := AddT("Home", x + 170, 169, 2, 5, "", "body", 9, Pal.text, Pal.faint)
+    ; the gauge: one picture (fish mark above, track and bar, centre tick below)
+    UI.gPic := MainGui.Add("Picture", Format("x{} y{} w{} h{}", ZS(x), ZS(146), ZS(300), ZS(28))
+        , "HBITMAP:" GaugeHbm(ToPhys(300), ToPhys(28), ToPhys(7), ToPhys(9), ToPhys(12), ToPhys(23), ToPhys(5), 0.36, 0.64, 0.5, false, Pal.content))
+    Pages["Home"].ctls.Push(UI.gPic)
     UI.mOffL := AddT("Home", x, 180, 76, 22, "Fish offset", "body", 9, Pal.dim, Pal.content, "0x200")
     UI.mOff := AddT("Home", x + 76, 180, 60, 22, "–", "num", 11, Pal.text, Pal.content, "0x200")
     UI.mCtrL := AddT("Home", x + w // 2, 180, 66, 22, "Centered", "body", 9, Pal.dim, Pal.content, "0x200")
@@ -2647,6 +2719,7 @@ ShowMain(tab, px := "", py := "") {
     Layout()
     UpdateAll()
     try PlusGlow.Refresh()                      ; (Plus: the glowing border)
+    try PlusFx.Refresh()                        ; (Plus: the theme's effect)
 }
 
 SwitchTab(name, speak := true) {
@@ -3033,22 +3106,19 @@ SetGauge(l, r, f, live) {
     Hud.Gauge(l, r, GaugeState.f, live)
     if !UiReady
         return
+    ; (drawn at most every 80 ms, and not while the window is hidden: the reel
+    ; loop calls this every frame and mustn't wait on drawing)
+    static lastDraw := 0
+    if (live = UI.gLive && (A_TickCount - lastDraw < 80 || !DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd)))
+        return
+    lastDraw := A_TickCount
     try {
         w := UI.gW, x0 := UI.gX
-        bl := Round(Clamp(l, 0, 1) * w), br := Round(Clamp(r, 0, 1) * w)
-        if (br - bl < 2)
-            br := Min(w, bl + 2), bl := br - 2
-        UI.gL.Move(x0, , bl)
-        UI.gBar.Move(x0 + bl, , br - bl)
-        UI.gR.Move(x0 + br, , w - br)
-        UI.gCtr.Move(x0 + (bl + br) // 2 - 1)
-        UI.gFish.Move(x0 + Round(Clamp(GaugeState.f, 0, 1) * (w - 3)))
+        UI.gPic.Move(x0, , w, ZS(28))
+        ; (w is in the layout's units; the picture is drawn in real pixels)
+        SetPicHbm(UI.gPic, GaugeHbm(Round(w * A_ScreenDPI / 96), ToPhys(28), ToPhys(7), ToPhys(9), ToPhys(12), ToPhys(23), ToPhys(5), l, r, GaugeState.f, live, Pal.content))
         if (live != UI.gLive) {
             UI.gLive := live
-            UI.gBar.Opt("Background" (live ? Pal.accent : Pal.faint))
-            UI.gFish.Opt("Background" (live ? Pal.text : Pal.faint))
-            UI.gCtr.Opt("Background" (live ? Pal.dim : Pal.faint))
-            UI.gBar.Redraw(), UI.gFish.Redraw(), UI.gCtr.Redraw()
             if !live {
                 UI.mOff.Text := "–"
                 UI.mCtr.Text := "–"
@@ -3487,7 +3557,7 @@ OpenSnapshots() {
 ; focus from Roblox (WS_EX_NOACTIVATE) and can be dragged anywhere.
 ;------------------------------------------------------------------------------
 class Hud {
-    static g := 0, t := 0, d := 0, s := 0, stop := 0, gF := 0, gL := 0, gB := 0, gR := 0, W := 284, gw := 256, lastG := 0, live := -1
+    static g := 0, t := 0, d := 0, s := 0, stop := 0, gP := 0, W := 284, gw := 256, lastG := 0, live := -1
     static Build() {
         g := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000000", APP_NAME " panel")
         g.BackColor := Pal.strip
@@ -3502,10 +3572,8 @@ class Hud {
         this.stop := A(W - 84, 6, 74, 22, "■  Stop", "body", 9, Pal.text, Pal.field, "Center 0x200")
         this.t := A(14, 26, W - 24, 24, "", "display", 12, Pal.text, Pal.strip, "0x200 0x4000")
         this.d := A(14, 50, W - 24, 18, "", "body", 9, Pal.dim, Pal.strip, "0x200 0x4000")
-        this.gF := A(14, 70, 3, 4, "", "body", 9, Pal.text, Pal.faint)
-        this.gL := A(14, 75, 10, 8, "", "body", 9, Pal.text, Pal.field)
-        this.gB := A(24, 75, 10, 8, "", "body", 9, Pal.text, Pal.faint)
-        this.gR := A(34, 75, 10, 8, "", "body", 9, Pal.text, Pal.field)
+        this.gP := g.Add("Picture", Format("x{} y{} w{} h{}", ZS(14), ZS(70), ZS(this.gw), ZS(13))
+            , "HBITMAP:" GaugeHbm(ToPhys(this.gw), ToPhys(13), ToPhys(4), ToPhys(5), ToPhys(8), 0, 0, 0.36, 0.64, 0.5, false, Pal.strip, false))
         this.s := A(14, 88, W - 24, 18, "", "body", 9, Pal.dim, Pal.strip, "0x200 0x4000")
         this.g := g, this.live := -1
         g.Show(Format("w{} h{} Hide", ZS(W), ZS(112)))
@@ -3566,19 +3634,7 @@ class Hud {
         if (!this.Visible() || A_TickCount - this.lastG < 80)
             return
         this.lastG := A_TickCount
-        try {
-            w := ZS(this.gw), x0 := ZS(14)
-            bl := Round(Clamp(l, 0, 1) * w), br := Round(Clamp(r, 0, 1) * w)
-            if (br - bl < 2)
-                br := Min(w, bl + 2), bl := br - 2
-            this.gL.Move(x0, , bl), this.gB.Move(x0 + bl, , br - bl), this.gR.Move(x0 + br, , w - br)
-            this.gF.Move(x0 + Round(Clamp(f, 0, 1) * (w - 3)))
-            if (live != this.live) {
-                this.live := live
-                this.gB.Opt("Background" (live ? Pal.accent : Pal.faint)), this.gF.Opt("Background" (live ? Pal.text : Pal.faint))
-                this.gB.Redraw(), this.gF.Redraw()
-            }
-        }
+        try SetPicHbm(this.gP, GaugeHbm(ToPhys(this.gw), ToPhys(13), ToPhys(4), ToPhys(5), ToPhys(8), 0, 0, l, r, f, live, Pal.strip, false))
     }
     ; Where the panel is on screen (for checks that must look past it), or 0.
     static Rect() {
@@ -4044,35 +4100,146 @@ RoundCtl(ctl, top := true, bottom := true) {
     }
 }
 
-; The profile: a page of its own (opened from your name in the sidebar).
+; The profile: a page of its own (opened from your name in the sidebar). Its
+; cards and buttons are pictures, drawn rounded (see CardHbm, BtnHbm).
 BuildProfile() {
     global ColX, RowBase
     ColX := PAGE_X - PAD, RowBase := ROW_Y0
     Pages["Profile"] := {ctls: [], focus: [], desc: ""}
     x := PAGE_X, cw := (LEFT_W - 12) // 2
-    UI.pfAvatar := MainGui.Add("Picture", Format("x{} y{} w{} h{}", ZS(x), ZS(18), ZS(80), ZS(80)))
-    Pages["Profile"].ctls.Push(UI.pfAvatar)
+    P(px, py, pw, ph, hbm) {
+        c := MainGui.Add("Picture", Format("x{} y{} w{} h{}", ZS(px), ZS(py), ZS(pw), ZS(ph)), "HBITMAP:" hbm)
+        Pages["Profile"].ctls.Push(c)
+        return c
+    }
+    UI.pfAvatar := P(x, 18, 80, 80, ProfileAvatar(ToPhys(80), Pal.accent, Pal.content))
     UI.pfName := AddT("Profile", x + 96, 22, LEFT_W - 96, 34, "", "display", 18, Pal.text, Pal.content, "0x200")
     UI.pfUser := AddT("Profile", x + 96, 56, LEFT_W - 96, 20, "", "body", 10, Pal.dim, Pal.content, "0x200")
     UI.pfBadge := AddT("Profile", x + 96, 78, LEFT_W - 96, 20, "", "body", 9, Pal.dim, Pal.content, "0x200")
-    ; cards: a title strip and its values, each half rounded
-    card(cx, cy, w, h, title) {
-        t := AddT("Profile", cx, cy, w, 26, "   " title, "body", 8, Pal.dim, Pal.field, "0x200")
-        v := AddT("Profile", cx, cy + 26, w, h - 26, "", "body", 10, Pal.text, Pal.field)
-        UI.pfCards.Push([t, v])
-        return v
+    UI.pfSess := P(x, 108, cw, 108, CardHbm(cw, 108, "THIS SESSION", []))
+    UI.pfLife := P(x + cw + 12, 108, cw, 108, CardHbm(cw, 108, "ALL TIME", []))
+    UI.pfAcct := P(x, 224, LEFT_W, 76, CardHbm(LEFT_W, 76, "DISCORD ACCOUNT", []))
+    for it in [["Log out", x, false, (*) => SignOut()], ["Back", x + LEFT_W - 150, true, (*) => ProfileBack()]] {
+        b := P(it[2], 310, 150, 34, BtnHbm(150, 34, it[1], it[3], false))
+        Clickables[b.Hwnd] := {kind: "btn", fn: it[4], obj: b, bg: Pal.content, hv: Pal.content
+            , onHover: ((ctl, lab, acc) => (hot) => SetPicHbm(ctl, BtnHbm(150, 34, lab, acc, hot)))(b, it[1], it[3])}
     }
-    UI.pfCards := []
-    UI.pfSess := card(x, 108, cw, 118, "THIS SESSION")
-    UI.pfLife := card(x + cw + 12, 108, cw, 118, "ALL TIME")
-    UI.pfAcct := card(x, 236, LEFT_W, 58, "DISCORD ACCOUNT")
-    b := AddT("Profile", x, 306, 150, 34, "Log out", "body", 10, Pal.text, Pal.field, "Center 0x200")
-    Clickables[b.Hwnd] := {kind: "btn", fn: (*) => SignOut(), obj: b, bg: Pal.field, hv: Pal.fieldHi}
-    b := AddT("Profile", x + LEFT_W - 150, 306, 150, 34, "Back", "body", 10, Pal.ink, Pal.accent, "Center 0x200")
-    Clickables[b.Hwnd] := {kind: "btn", fn: (*) => ProfileBack(), obj: b, bg: Pal.accent, hv: Pal.accentHi}
-    for c in UI.pfCards
-        RoundCtl(c[1], true, false), RoundCtl(c[2], false, true)
     Pages["Profile"].desc := "Your FISCHXR profile."
+}
+
+; Puts a picture into a Picture control (and frees the one it replaces).
+SetPicHbm(ctl, hbm) {
+    hw := ctl.Hwnd
+    old := SendMessage(0x172, 0, hbm, hw), cur := SendMessage(0x173, 0, 0, hw)
+    if (old && old != cur)
+        DllCall("DeleteObject", "Ptr", old)
+    if (cur != hbm)
+        DllCall("DeleteObject", "Ptr", hbm)
+}
+
+; A gauge as one picture (so nothing moved can leave a trace behind): the fish
+; mark on top, the track with the bar, and (tick) the bar's centre below.
+GaugeHbm(w, h, fishH, trackY, trackH, tickY, tickH, l, r, f, live, bg, tick := true) {
+    hdc := DllCall("GetDC", "Ptr", 0, "Ptr")
+    mdc := DllCall("CreateCompatibleDC", "Ptr", hdc, "Ptr")
+    hbm := DllCall("CreateCompatibleBitmap", "Ptr", hdc, "Int", Max(1, w), "Int", Max(1, h), "Ptr")
+    DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc)
+    old := DllCall("SelectObject", "Ptr", mdc, "Ptr", hbm, "Ptr")
+    Fill(fx, fy, fw, fh, rgb) {
+        c := Integer("0x" rgb), rc := Buffer(16)
+        NumPut("Int", fx, "Int", fy, "Int", fx + fw, "Int", fy + fh, rc)
+        hb := DllCall("CreateSolidBrush", "UInt", ((c & 0xFF) << 16) | (c & 0xFF00) | ((c >> 16) & 0xFF), "Ptr")   ; (not "br": that's the bar's end)
+        DllCall("FillRect", "Ptr", mdc, "Ptr", rc, "Ptr", hb), DllCall("DeleteObject", "Ptr", hb)
+    }
+    Fill(0, 0, w, h, bg)
+    bl := Round(Clamp(l, 0, 1) * w), br := Round(Clamp(r, 0, 1) * w)
+    if (br - bl < 2)
+        br := Min(w, bl + 2), bl := br - 2
+    Fill(0, trackY, w, trackH, Pal.field)
+    Fill(bl, trackY, br - bl, trackH, live ? Pal.accent : Pal.faint)
+    Fill(Round(Clamp(f, 0, 1) * (w - 3)), 0, 3, fishH, live ? Pal.text : Pal.faint)
+    if tick
+        Fill((bl + br) // 2 - 1, tickY, 2, tickH, live ? Pal.dim : Pal.faint)
+    DllCall("SelectObject", "Ptr", mdc, "Ptr", old), DllCall("DeleteDC", "Ptr", mdc)
+    return hbm
+}
+
+; Drawing helpers for the rounded profile pieces (GDI+, the bundled Inter).
+GpRoundFill(g, x, y, w, h, r, argb) {
+    DllCall("gdiplus\GdipCreatePath", "Int", 0, "Ptr*", &p := 0)
+    d := r * 2
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", p, "Float", x, "Float", y, "Float", d, "Float", d, "Float", 180, "Float", 90)
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", p, "Float", x + w - d, "Float", y, "Float", d, "Float", d, "Float", 270, "Float", 90)
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", p, "Float", x + w - d, "Float", y + h - d, "Float", d, "Float", d, "Float", 0, "Float", 90)
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", p, "Float", x, "Float", y + h - d, "Float", d, "Float", d, "Float", 90, "Float", 90)
+    DllCall("gdiplus\GdipClosePathFigure", "Ptr", p)
+    DllCall("gdiplus\GdipCreateSolidFill", "UInt", argb, "Ptr*", &br := 0)
+    DllCall("gdiplus\GdipFillPath", "Ptr", g, "Ptr", br, "Ptr", p)
+    DllCall("gdiplus\GdipDeleteBrush", "Ptr", br), DllCall("gdiplus\GdipDeletePath", "Ptr", p)
+}
+; Text in an Inter face at px pixels; align 0 left, 1 centre. Returns its width.
+GpText(g, str, face, px, rgb, x, y, w, h, align := 0, measureOnly := false) {
+    fam := SignArt.Family(face)
+    if !fam
+        return 0
+    DllCall("gdiplus\GdipCreateFont", "Ptr", fam, "Float", px, "Int", 0, "Int", 2, "Ptr*", &font := 0)
+    DllCall("gdiplus\GdipStringFormatGetGenericTypographic", "Ptr*", &tf := 0)
+    DllCall("gdiplus\GdipCloneStringFormat", "Ptr", tf, "Ptr*", &fmt := 0)
+    DllCall("gdiplus\GdipSetStringFormatFlags", "Ptr", fmt, "Int", 0x4000 | 0x1000 | 0x800)
+    DllCall("gdiplus\GdipSetStringFormatAlign", "Ptr", fmt, "Int", align), DllCall("gdiplus\GdipSetStringFormatLineAlign", "Ptr", fmt, "Int", 1)
+    rc := Buffer(16), NumPut("Float", x, "Float", y, "Float", w, "Float", h, rc), out := Buffer(16, 0)
+    DllCall("gdiplus\GdipMeasureString", "Ptr", g, "WStr", str, "Int", -1, "Ptr", font, "Ptr", rc, "Ptr", fmt, "Ptr", out, "Ptr", 0, "Ptr", 0)
+    if !measureOnly {
+        DllCall("gdiplus\GdipCreateSolidFill", "UInt", 0xFF000000 | Integer("0x" rgb), "Ptr*", &br := 0)
+        DllCall("gdiplus\GdipDrawString", "Ptr", g, "WStr", str, "Int", -1, "Ptr", font, "Ptr", rc, "Ptr", fmt, "Ptr", br)
+        DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+    }
+    DllCall("gdiplus\GdipDeleteStringFormat", "Ptr", fmt), DllCall("gdiplus\GdipDeleteFont", "Ptr", font)
+    return NumGet(out, 8, "Float")
+}
+GpSurface(W, H, &bmp, &g) {
+    SignArt.Start()
+    DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", W, "Int", H, "Int", 0, "Int", 0x26200A, "Ptr", 0, "Ptr*", &bmp := 0)
+    DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", bmp, "Ptr*", &g := 0)
+    DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", g, "Int", 4), DllCall("gdiplus\GdipSetTextRenderingHint", "Ptr", g, "Int", 5)
+    DllCall("gdiplus\GdipGraphicsClear", "Ptr", g, "UInt", 0xFF000000 | Integer("0x" Pal.content))
+}
+GpDone(bmp, g) {
+    DllCall("gdiplus\GdipDeleteGraphics", "Ptr", g)
+    DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", bmp, "Ptr*", &hbm := 0, "UInt", 0xFF000000 | Integer("0x" Pal.content))
+    DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
+    return hbm
+}
+
+; A rounded card: a small title, lines of text, and chips ([name, colour]...).
+CardHbm(w, h, title, lines, chips := "") {
+    s := ToPhys(1000) / 1000, W := ToPhys(w), H := ToPhys(h)          ; (the control's real pixels: zoom and display scaling)
+    GpSurface(W, H, &bmp, &g)
+    GpRoundFill(g, 0, 0, W, H, 10 * s, 0xFF000000 | Integer("0x" Pal.field))
+    GpText(g, title, "Inter SemiBold", 11 * s, Pal.dim, 14 * s, 8 * s, W - 28 * s, 18 * s)
+    y := 30 * s
+    for ln in lines
+        GpText(g, ln, "Inter", 13.5 * s, Pal.text, 14 * s, y, W - 28 * s, 18 * s), y += 18 * s
+    if IsObject(chips) {
+        x := 14 * s, y += 4 * s
+        for c in chips {
+            tw := GpText(g, c[1], "Inter SemiBold", 10.5 * s, c[2], 0, 0, 400 * s, 20 * s, 0, true) + 14 * s
+            GpRoundFill(g, x, y, tw, 20 * s, 10 * s, 0x38000000 | Integer("0x" c[2]))
+            GpText(g, c[1], "Inter SemiBold", 10.5 * s, c[2], x, y, tw, 20 * s, 1)
+            x += tw + 6 * s
+        }
+    }
+    return GpDone(bmp, g)
+}
+
+; A rounded button (accent: the theme's accent colour; hot: under the mouse).
+BtnHbm(w, h, label, accent, hot) {
+    s := ToPhys(1000) / 1000, W := ToPhys(w), H := ToPhys(h)
+    GpSurface(W, H, &bmp, &g)
+    fill := accent ? (hot ? Pal.accentHi : Pal.accent) : (hot ? Pal.fieldHi : Pal.field)
+    GpRoundFill(g, 0, 0, W, H, 9 * s, 0xFF000000 | Integer("0x" fill))
+    GpText(g, label, "Inter Medium", 13.5 * s, accent ? Pal.ink : Pal.text, 0, 0, W, H, 1)
+    return GpDone(bmp, g)
 }
 
 
@@ -5677,6 +5844,7 @@ ClassifyKey(p, k) {
 ; (fish colour anywhere, a gap inside the bar, or an odd colour outside it).
 ; predFish, when known, breaks ties toward where the fish was.
 VisionScan(b, p, predFish := -1) {
+    redBar := -1                                    ; (worked out when first needed)
     if (p.kind = "box")
         return BoxScan(b, b.geo, predFish, p)
     if (p.kind = "caps")
@@ -5723,6 +5891,20 @@ VisionScan(b, p, predFish := -1) {
     ; built-in style: it knows no track colours yet, so unknown means track.
     uf := !p.probe
     maxF := Max(3, Round(w * 0.12)), fx := -1, fBest := -1e9, rs := -1, fishN := 0, fishCol := false, x := 0
+    ; Colours nothing knows only make a fish if they're capsule-sized (a stretch
+    ; of track whose colours weren't learned isn't one) and don't touch either
+    ; end of the band; a standard bar that isn't white has the fish outside it.
+    maxU := Max(3, Round(w * 0.03)), std := p.lib = "standard"
+    Cand(cen, len, nF) {
+        inside := bar && cen > bl && cen < br
+        sc := 4 * nF + (inside ? 2 : 1) * len
+        if (inside && (redBar = -1 ? (redBar := std ? IsTintedBar(b, bl, br) : IsRedBar(b, bl, br)) : redBar))
+            sc := -1e12
+        if (predFish >= 0)
+            sc -= Abs(cen - predFish) / Max(1, w * 0.08)
+        if (sc > fBest)
+            fBest := sc, fx := cen, fishCol := nF > 0
+    }
     while (x <= w) {
         isF := false
         if (x < w) {
@@ -5735,15 +5917,25 @@ VisionScan(b, p, predFish := -1) {
                 rs := x, fishN := 0
             fishN += (NumGet(lab, x, "UChar") = 3)
         } else if (rs >= 0) {
-            len := x - rs
-            if (len <= maxF) {
-                cen := rs + (len - 1) / 2
-                inside := bar && cen > bl && cen < br
-                sc := 4 * fishN + (inside ? 2 : 1) * len
-                if (predFish >= 0)
-                    sc -= Abs(cen - predFish) / Max(1, w * 0.08)
-                if (sc > fBest)
-                    fBest := sc, fx := cen, fishCol := fishN > 0
+            len := x - rs, edge := rs = 0 || x >= w
+            if (len <= maxF && (fishN > 0 || (len <= maxU && !edge)))
+                Cand(rs + (len - 1) / 2, len, fishN)
+            else if (len > maxF || (fishN = 0 && len > maxU)) {
+                ; a long stretch of unknown colours: track whose colours weren't
+                ; learned. The fish in it shows as fish-coloured pixels.
+                q := rs, s2 := -1
+                while (q <= x) {
+                    if (q < x && NumGet(lab, q, "UChar") = 3) {
+                        if (s2 < 0)
+                            s2 := q
+                    } else if (s2 >= 0) {
+                        l2 := q - s2
+                        if (l2 <= maxF)
+                            Cand(s2 + (l2 - 1) / 2, l2, l2)
+                        s2 := -1
+                    }
+                    q++
+                }
             }
             rs := -1
         }
@@ -6272,7 +6464,9 @@ MatchPrecoded(b, geo, all := false) {
             ids.Push(lib.id)
     best := 0, bestScore := 0, bestId := ""
     for id in ids {
-        if SessionLooks.Has(id) {
+        ; (Noiseform's look is taken fresh every reel: the bar's width changes
+        ; from fish to fish, and its learned background from cast to cast)
+        if (SessionLooks.Has(id) && !(SessionLooks[id].HasOwnProp("kind") && SessionLooks[id].kind = "box")) {
             p := FillProfile(SessionLooks[id])
             d := VisionScan(b, p)
             if (d.bar && d.cover >= 0.75 && (p.kind != "" || EdgesPresent(b, geo, p) != 0)) {
@@ -6674,6 +6868,10 @@ BoxScan(b, geo, predFish := -1, p := 0, now := -1) {
     ; even when the bar's sides were misread (at night), which put the rows
     ; from the box in the wrong place. The rows from the box are the fallback.
     fx := -1, fBest := 1e9, tol := Max(3, Round(w * 0.004))
+    ; The bar's own outline is a thin dark line too: with the rod's bright
+    ; arcs beside it, it can look like the fish. On a bar edge it isn't one.
+    et := Max(6, Round(w * 0.01))
+    OnEdge(cx) => bl >= 0 && (Abs(cx - bl) <= et || Abs(cx - br) <= et)
     ; Best of all: a thin line darker than what's on both sides of it (the
     ; bar's inside, or brighter scenery) on at least two of three rows across
     ; the reel, at the same place. It holds day and night; a bar side isn't
@@ -6689,7 +6887,7 @@ BoxScan(b, geo, predFish := -1, p := 0, now := -1) {
                 votes.Push([x0, 1])
         }
     for vv in votes
-        if (vv[2] >= 2) {
+        if (vv[2] >= 2 && !OnEdge(vv[1] / vv[2]) && !IsBgCol(b, p, vv[1] / vv[2])) {
             cen := vv[1] / vv[2], sc := -vv[2] * 10 + (predFish >= 0 ? Abs(cen - predFish) / Max(1, w * 0.05) : 0)
             if (sc < fBest)
                 fBest := sc, fx := cen
@@ -6702,12 +6900,60 @@ BoxScan(b, geo, predFish := -1, p := 0, now := -1) {
                 if (Abs(u[1] - v[1]) > tol || Abs(u[2] - v[2]) > Max(4, 0.6 * Max(u[2], v[2])))
                     continue
                 cen := (u[1] + v[1]) / 2
+                if (OnEdge(cen) || IsBgCol(b, p, cen))
+                    continue
                 sc := Abs(u[2] - v[2]) + (predFish >= 0 ? Abs(cen - predFish) / Max(1, w * 0.05) : 0)
                 if (sc < fBest)
                     fBest := sc, fx := cen
             }
         if (fx >= 0)
             break
+    }
+    ; Noiseform's emblem (the arcs) never moves: what the reel looks like
+    ; without the bar is learned while the bar is bright (its reading is sure
+    ; then). When it turns dark (the fish outside it), the bar is where the
+    ; picture differs from that, a block as wide as the bar.
+    ; Pushed against an end of the track, the bar's outline merges with the
+    ; track's own border and isn't found: then it's the block against that
+    ; end, clearly brighter than the track, about as wide as the bar.
+    if (bl < 0 && p && p.barW > 0 && (eb := EndBar(b, p.barW * w)))
+        bl := eb[1], br := eb[2]
+    if (p && p.barW > 0) {
+        Lc := [], Gr := [], x := 0
+        while (x < w) {
+            c := NumGet(b.cols, x * 4, "UInt")
+            Lc.Push((2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3)
+            Gr.Push(((c >> 8) & 255) - ((c >> 16) & 255)), x++       ; (green over red: the bar has it, white text doesn't)
+        }
+        if (!p.HasOwnProp("bgL") || p.bgL.Length != w) {
+            p.bgL := []
+            loop w
+                p.bgL.Push(-1)
+        }
+        barPx := p.barW * w
+        ; The reel gone: most of the learned background (the track, the
+        ; emblem) no longer looks as it did. Nothing here is a bar then,
+        ; whatever shape the scenery has.
+        if ReelGoneFromBg(Lc, p.bgL, bl, br) {
+            none.fish := false, none.fx := -1
+            return none
+        }
+        if (bl >= 0 && BarMedian(Lc, Round(bl), Round(br)) >= 145) {
+            m := Round(w * 0.02), x := 1
+            while (x <= w) {
+                if (x - 1 < bl - m || x - 1 > br + m)
+                    p.bgL[x] := p.bgL[x] < 0 ? Lc[x] : p.bgL[x] + (Lc[x] - p.bgL[x]) * 0.2
+                x++
+            }
+        } else if ((bl < 0 || BgSupport(Lc, Gr, p.bgL, Round(bl), Round(br)) < 0.5) && (nb := OffBackground(Lc, Gr, p.bgL, barPx))) {
+            ; (the outline reading stands if the picture backs it up there;
+            ; a phantom over the emblem looks just like the emblem)
+            if (bl < 0 || Abs((bl + br) / 2 - (nb[1] + nb[2]) / 2) > 0.2 * barPx) {
+                bl := nb[1], br := nb[2]                        ; (0 is the track's first column, not "no bar")
+                if (fx >= 0 && (Abs(fx - nb[1]) <= et || Abs(fx - nb[2]) <= et))
+                    fx := -1                                ; (that "fish" was this bar's edge)
+            }
+        }
     }
     none.fish := fx >= 0, none.fx := fx, none.fishCol := fx >= 0
     if (bl < 0)
@@ -7830,6 +8076,185 @@ NoiseValleys(b, y, w) {
     return out
 }
 
+; Whether the bar between columns bl and br is the red-brown it turns while the
+; fish is outside it (not the white it is with the fish inside).
+IsRedBar(b, bl, br) {
+    r := 0, g := 0, bb := 0, n := 0, x := bl
+    while (x <= br) {
+        c := NumGet(b.cols, x * 4, "UInt")
+        r += (c >> 16) & 255, g += (c >> 8) & 255, bb += c & 255, n++
+        x += 2
+    }
+    if !n
+        return false
+    r /= n, g /= n, bb /= n
+    return r - g >= 10 && r - bb >= 12 && bb <= g + 6 && r >= 55 && r <= 150
+}
+
+
+; Whether a standard reel's bar (white while the fish is in it) is tinted
+; (red, tan...: the fish is outside it).
+IsTintedBar(b, bl, br) {
+    t := 0, n := 0, x := bl
+    while (x <= br) {
+        c := NumGet(b.cols, x * 4, "UInt")
+        t += (2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3, n++
+        x += 2
+    }
+    return n && t / n < 170
+}
+
+
+; The middle brightness of columns bl..br (0-based): the bright bar's is about
+; 165 (it shades from ~100 at its left end to ~190, with its arrows and the
+; fish as dips), the dark bar's about 130, the emblem's gaps much lower.
+BarMedian(Lc, bl, br) {
+    vals := [], x := Max(0, bl)
+    while (x <= Min(br, Lc.Length - 1))
+        vals.Push(Lc[x + 1]), x += 2
+    return vals.Length ? MedianOf(vals) : 0
+}
+
+; Where the picture is brighter than the learned background (by 20+) in a
+; fairly even block 55-130% of the bar's width (the bar shades, so part of it
+; can match what's behind it); the bar, as wide as it is, centred there.
+; (Once the reel is gone, ReelGoneFromBg has already said so.) Columns never seen without the bar
+; count as gaps (up to 35% of the block); 60% or more must differ.
+; [left, right] (0-based) or 0.
+OffBackground(Lc, Gr, bg, barPx) {
+    w := Lc.Length, known := 0
+    for v in bg
+        known += v >= 0
+    if (known < w * 0.3)
+        return 0
+    best := 0, bestErr := 1e9, st := -1, gap := 0, dif := 0, maxGap := Max(4, Round(w * 0.06)), x := 1
+    while (x <= w + 1) {
+        k := x <= w && bg[x] >= 0
+        dv := k ? Lc[x] - bg[x] : 0
+        on := k && dv >= 20 && dv <= 120                ; (brighter than what's behind it, but not by as much as white text)
+        unknown := x <= w && !k
+        if (on || (unknown && st >= 0)) {
+            if (st < 0)
+                st := x, dif := 0
+            dif += on, gap := 0
+        } else if (st >= 0) {
+            gap++
+            if (gap > maxGap || x > w) {
+                en := x - gap, len := en - st + 1
+                if (len >= 0.55 * barPx && len <= 1.3 * barPx && dif >= 0.5 * len && Abs(len - barPx) < bestErr) {
+                    ; and even: most of it near its middle brightness (text over
+                    ; the reel is thin bright strokes, not an even block)
+                    vals := [], q := st
+                    while (q <= en)
+                        vals.Push(Lc[q]), q += 2
+                    md := MedianOf(vals), near := 0
+                    for vv in vals
+                        near += Abs(vv - md) <= 25
+                    if (near >= 0.6 * vals.Length) {
+                        ; (the bar shades, so part of it can match what's
+                        ; behind it: it's as wide as the bar, centred here)
+                        cen := (st + en) / 2 - 1
+                        lo := Round(cen - barPx / 2), hi := lo + Round(barPx)
+                        if (lo < 0)                         ; (against an end of the track: slid back in)
+                            hi -= lo, lo := 0
+                        if (hi > w - 1)
+                            lo -= hi - (w - 1), hi := w - 1
+                        bestErr := Abs(len - barPx), best := [Max(0, lo), hi]
+                    }
+                }
+                st := -1, gap := 0
+            }
+        }
+        x++
+    }
+    return best
+}
+
+; How much of bl..br (0-based) looks like the bar against the learned
+; background: the share of known columns there brighter than it (by 20-120).
+; A phantom over the emblem scores low.
+BgSupport(Lc, Gr, bg, bl, br) {
+    n := 0, on := 0, x := Max(0, bl)
+    while (x <= Min(br, Lc.Length - 1)) {
+        if (bg[x + 1] >= 0)
+            n++, dv := Lc[x + 1] - bg[x + 1], on += dv >= 20 && dv <= 120
+        x += 2
+    }
+    return n ? on / n : 1
+}
+
+; Whether the reel has gone: the background is known for enough of the track
+; (30%+), and outside the bar reading (bl..br, 0-based; -1 for none) under 35%
+; of it still looks as learned. During a reel the track and emblem around the
+; bar match (text across part of it still leaves most); after the catch the
+; scenery differs almost everywhere.
+ReelGoneFromBg(Lc, bg, bl, br) {
+    w := Lc.Length, known := 0, n := 0, same := 0, x := 1
+    while (x <= w) {
+        if (bg[x] >= 0) {
+            known++
+            if (bl < 0 || x - 1 < bl - 10 || x - 1 > br + 10)
+                n++, same += Abs(Lc[x] - bg[x]) < 20
+        }
+        x += 2
+    }
+    return known * 2 >= w * 0.3 && n >= 20 && same / n < 0.35
+}
+
+; A bar pushed against either end of the track: a block from that end, 40+
+; brighter than the track (the bar is ~130-190, the track ~35; the emblem in
+; the middle never touches an end), 40-130% of the bar's width (barPx: a zone
+; can cover part of it), short breaks allowed (its arrow). [left, right] (0-based) or 0.
+EndBar(b, barPx) {
+    w := b.w, Lv := [], x := 0
+    while (x < w) {
+        c := NumGet(b.cols, x * 4, "UInt")
+        Lv.Push((2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3), x++
+    }
+    v := ""
+    for lv in Lv
+        v .= Format("{:03}", lv) "`n"
+    srt := StrSplit(Sort(RTrim(v, "`n")), "`n"), trk := Integer(srt[(srt.Length + 1) // 2])
+    maxGap := Max(4, Round(w * 0.035)), border := Max(4, Round(w * 0.025))
+    for side in [1, -1] {
+        ; (the track's end has a thin dark border: the block may start just inside it)
+        st := 0, k := 0
+        while (k < border && !st) {
+            x := side = 1 ? 1 + k : w - k
+            if (Lv[x] >= trk + 40)
+                st := k + 1
+            k++
+        }
+        if !st
+            continue
+        x := side = 1 ? st : w - st + 1, gap := 0, last := st
+        while (x >= 1 && x <= w && gap <= maxGap) {
+            if (Lv[x] >= trk + 40)
+                last := side = 1 ? x : w - x + 1, gap := 0
+            else
+                gap++
+            x += side
+        }
+        len := last
+        ; (a zone can cover part of it: 40% of the bar from the end is enough)
+        if (len >= 0.4 * barPx && len <= 1.3 * barPx)
+            return side = 1 ? [0, Min(w - 1, Round(barPx))] : [Max(0, w - 1 - Round(barPx)), w - 1]
+    }
+    return 0
+}
+
+; Whether column x looks just as the learned background does there (so a
+; "fish" there is part of the reel's fixed picture: the emblem, the track).
+IsBgCol(b, p, x) {
+    if !(p && p.HasOwnProp("bgL") && p.bgL.Length = b.w)
+        return false
+    x := Round(x)
+    if (x < 0 || x >= b.w || p.bgL[x + 1] < 0)
+        return false
+    c := NumGet(b.cols, x * 4, "UInt")
+    return Abs(((2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3) - p.bgL[x + 1]) < 12
+}
+
 
 ;==============================================================================
 ; Extras: logo graphics, auto totems, Sovereign recharge, Discord alerts and
@@ -8908,6 +9333,53 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.2.9
+- Noiseform: the bar is measured fresh on every reel. Its width changes from fish to fish, and reusing an earlier reel's width could make FISCHXR read part of the green emblem as the bar (and lose the fish).
+- Noiseform: a bar reading that doesn't move while the mouse is held or let go is ignored (the bar always moves then), and a "fish" that's really part of the reel's fixed picture is ignored too.
+
+5.2.8
+- Noiseform: the bar is found when it's pushed against either end of the reel (its outline merges with the reel's border there). Before, FISCHXR lost it there, so when a zone warning came it couldn't take the bar to the zone.
+
+5.2.7
+- Noiseform: FISCHXR knows when the reel is over again. 5.2.6 could keep "seeing" a bar in the scenery after the catch; now once the reel's track and emblem are gone, nothing there counts as a bar.
+
+5.2.6
+- Noiseform: FISCHXR now follows the bar when it goes dark (the fish outside it). It learns what the reel looks like behind the bar, the green emblem included, and finds the dark bar as what stands out from that, instead of mistaking the emblem for the bar.
+
+5.2.5
+- Noiseform: the bar's own outline is no longer mistaken for the fish. With a rod's bright effects beside it, the macro could chase its own bar to the end of the track.
+
+5.2.4
+- The profile's picture, cards and buttons, and the reel gauges, are sized right on screens with display scaling (125%, 150%...): no more small cards or blurry buttons.
+
+5.2.3
+- Your profile shows your Discord picture again, and your FISCHXR roles (Macro Developer, Macro Creator, Macro Tester, Content Creator).
+- The profile's cards and buttons are properly rounded now.
+- The reel gauges no longer leave stray marks behind as the bar and fish move.
+
+5.2.2
+- Your rod is read again every time you start fishing, so a rod you swapped while stopped is picked up straight away. (A rod typed on the Rods page still takes priority.)
+
+5.2.1
+- Fast fish are followed instead of lost. When the fish slipped out of the bar, FISCHXR could mistake a stretch of empty track for it and steer the wrong way; now only something fish-sized counts, and it finds the real fish even over the dark track.
+- A reel isn't given up on while the bar is still there, even when it's tinted and covering the track's edge.
+- Fixed FISCHXR stopping with "Something went wrong" after two bad reels in a row.
+
+5.2.0
+- FISCHXR knows every reel starts with the bar and the fish in the middle. Something that looks like a reel but isn't centred is ignored, and early wrong readings of the fish are no longer believed straight away.
+- The reel style can no longer drift to another rod's reel (like a standard rod being read as Noiseform). A style is only switched for a rod whose name isn't known, and only after it fits two reels in a row.
+
+5.1.9
+- The standard reel keeps track of the bar when it turns red (the fish has slipped out of it), so FISCHXR keeps steering back to the fish instead of losing it.
+
+5.1.8
+- Catches aren't called early any more. On Noiseform, Pinion's Aria, Requiem, Verdant Oath and Apollo's Sunshot, the fish keeps the reel going while the bar is hard to see (at night, in a zone), and FISCHXR takes one more look before casting, so it never casts over a reel that's still going.
+- Your rod is always read from your rod key's slot, even when another slot is highlighted or the hotbar is a different size on your screen.
+
+5.1.7
+- Plus themes come alive: Sakura petals drift down, Midnight stars twinkle (watch for shooting stars), Emerald fireflies glow and Sunset embers rise. Switch it off with Theme effects on the Plus tab.
+- The boost check no longer depends on the FISCHXR invite link.
+
 5.1.6
 - The FISCHXR team can now lock a version of FISCHXR to a Discord role (for test builds and early access). If your version is locked and you don't have the role, FISCHXR tells you so, and opens by itself as soon as you get it.
 
@@ -9244,13 +9716,30 @@ ReadRodName(announce := false, *) {
     cr := h ? ClientRect(h) : 0
     if !cr
         return RodNameDone("", "Roblox isn't open")
-    ; the slot in hand, found by its border; else the rod key's slot by position
-    if (r := FindEquippedSlot(cr)) {
-        LogVision(Format("Rod: the equipped slot is at {},{} ({}x{})", r.x, r.y, r.w, r.h))
+    ; The rod key's slot. The highlighted slot (the one in hand) shows how big
+    ; the hotbar is on this screen; the rod key says which slot to read. If a
+    ; different slot is highlighted, the rod key's slot is read, measured
+    ; from the highlighted one (the 9 slots sit centred, evenly spaced).
+    slot := RegExMatch(Cfg["RodKey"], "^[1-9]$") ? Integer(Cfg["RodKey"]) : 1, tried := false
+    r := FindEquippedSlot(cr)
+    if (!r && Running) {                                 ; nothing in hand: the rod is taken out for a look
+        Send "{" slot "}"
+        Sleep 450
+        r := FindEquippedSlot(cr), tried := true
+    }
+    if r {
+        pitch := r.w * 1.036
+        k := Max(1, Min(9, Round((r.x + r.w / 2 - (cr.x + cr.w / 2)) / pitch) + 5))
+        if (k != slot) {
+            LogVision(Format("Rod: slot {} is highlighted, the rod key is {}: reading slot {}", k, slot, slot))
+            r := {x: Round(r.x + (slot - k) * pitch), y: r.y, w: r.w, h: r.h}
+        } else
+            LogVision(Format("Rod: reading slot {}, the one in hand ({},{} {}x{})", slot, r.x, r.y, r.w, r.h))
     } else {
-        slot := RegExMatch(Cfg["RodKey"], "^[1-9]$") ? Cfg["RodKey"] : 1
+        if tried                                         ; (put it back as it was)
+            Send "{" slot "}"
         r := RodSlotRect(cr, slot)
-        LogVision("Rod: no equipped slot seen, reading slot " slot " by position")
+        LogVision("Rod: no slot highlighted, reading slot " slot " by position")
     }
     png := A_Temp "\fischxr_rod.png", out := A_Temp "\fischxr_rod.txt"
     hbm := CaptureBitmap(r.x, r.y, r.w, r.h)
@@ -9448,7 +9937,7 @@ SignedIn(me, tok, exp, fresh) {
     AuthState.access := Cfg["PlusAccess"]       ; (Plus given or taken by the team)
     PlusCheck(tok)                              ; boosting the FISCHXR server: Plus
     Remote.Start()                              ; the FISCHXR service: rules and remote settings
-    VLock.rolesAt := 0
+    VLock.rolesAt := 0, Profile.rolesAt := 0
     SetTimer(VLockCheckSoon, -600)              ; (a version locked to a role: this account's turn)
 }
 
@@ -10810,6 +11299,8 @@ PlusChanged(key) {
             PlusGlow.Refresh()
         case "PlusTheme":
             SetTimer(RebuildGui, -1)
+        case "PlusEffects":
+            PlusFx.Refresh()
         case "PlusAccent":
             if (Cfg["PlusAccent"] = "" || RegExMatch(Cfg["PlusAccent"], "i)^#?[0-9A-F]{6}$"))
                 SetTimer(RebuildGui, -1)
@@ -10852,8 +11343,9 @@ PlusGlowColor() {
 
 ; The Plus page.
 BuildPlus() {
-    global ColX, RowBase
-    ColX := PAGE_X - PAD, RowBase := ROW_Y0
+    global ColX, RowBase, ROW_H
+    ColX := PAGE_X - PAD, RowBase := ROW_Y0 - 4
+    was := ROW_H, ROW_H := 30                    ; (nine rows on this page: a little closer together)
     PageHead("Plus", "FISCHXR Plus", "Thanks for boosting the FISCHXR server! Make the macro yours.")
     Toggle("Plus", 0, "PlusGlow", "Glowing border", "A soft glow around the window.")
     Choice("Plus", 1, "PlusGlowColor", "Border colour", [["Pink", "Pink"], ["Purple", "Purple"], ["Blue", "Blue"], ["Cyan", "Cyan"]
@@ -10862,11 +11354,13 @@ BuildPlus() {
         , "How bright the glow is, or a slow pulse.")
     Toggle("Plus", 3, "PlusGlowRun", "Running light", "Two bright streaks race around the border.")
     Choice("Plus", 4, "PlusTheme", "Plus theme", [["", "Off (your theme)"], ["Sakura", "Sakura"], ["Midnight", "Midnight"]
-        , ["Emerald", "Emerald"], ["Sunset", "Sunset"]], "Colour themes only Plus has. Off keeps the theme from Settings.")
-    EditRow("Plus", 5, "PlusAccent", "Custom accent", "Your own accent colour, as a code like FF4FD8, then Enter. Leave it empty for the theme's own.")
-    Toggle("Plus", 6, "PlusQuickRecast", "Quick recast", "Casts again 0.3 s after a catch instead of waiting a full second.")
-    Choice("Plus", 7, "PlusPanelCorner", "Fishing panel corner", [["TR", "Top right"], ["TL", "Top left"], ["BR", "Bottom right"], ["BL", "Bottom left"]]
+        , ["Emerald", "Emerald"], ["Sunset", "Sunset"]], "Colour themes only Plus has, each with its own effect. Off keeps the theme from Settings.")
+    Toggle("Plus", 5, "PlusEffects", "Theme effects", "Sakura petals, Midnight stars, Emerald fireflies, Sunset embers.")
+    EditRow("Plus", 6, "PlusAccent", "Custom accent", "Your own accent colour, as a code like FF4FD8, then Enter. Leave it empty for the theme's own.")
+    Toggle("Plus", 7, "PlusQuickRecast", "Quick recast", "Casts again 0.3 s after a catch instead of waiting a full second.")
+    Choice("Plus", 8, "PlusPanelCorner", "Fishing panel corner", [["TR", "Top right"], ["TL", "Top left"], ["BR", "Bottom right"], ["BL", "Bottom left"]]
         , "Where the small panel sits while you fish (it also shows your catches per hour).")
+    ROW_H := was
 }
 
 ;------------------------------------------------------------------------------
@@ -11076,6 +11570,7 @@ PlusGlowStop() {
     try OnMessage(0x47, PlusGlowMoved, 0)
     if PlusGlow.ticker
         try SetTimer(PlusGlow.ticker, 0), SetTimer(PlusGlow.pulser, 0), SetTimer(PlusGlow.runner, 0)
+    try PlusFx.Stop()
     if PlusGlow.g
         try PlusGlow.g.Destroy()
     PlusGlow.g := 0
@@ -11104,6 +11599,199 @@ SetDwmBorder(hwnd, rgb) {
         NumPut("UInt", ((v & 0xFF) << 16) | (v & 0xFF00) | ((v >> 16) & 0xFF), buf)
     }
     DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 34, "Ptr", buf, "UInt", 4)
+}
+
+;------------------------------------------------------------------------------
+; Theme effects: each Plus theme's own animation, on a click-through layer over
+; the window (the page's words paint solid backgrounds, so nothing can go
+; behind them). Sakura: petals drift down. Midnight: stars twinkle, now and
+; then one shoots. Emerald: fireflies wander and glow. Sunset: embers rise.
+; 20 frames a second while the window shows; nothing while it's hidden.
+;------------------------------------------------------------------------------
+class PlusFx {
+    static g := 0, owner := 0, ticker := 0, dc := 0, hbm := 0, old := 0, gp := 0, gr := 0, W := 0, H := 0
+    static parts := [], kind := "", last := 0, frames := 0, shoot := 0
+
+    static Want() => IsPlus() && Cfg["PlusEffects"] && !Cfg["ReduceMotion"] && PlusThemeSet().Has(Cfg["PlusTheme"])
+        && IsSet(MainGui) && IsObject(MainGui) && UiReady && !Login.g
+        && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd) && !DllCall("IsIconic", "Ptr", MainGui.Hwnd)
+
+    static Refresh() {
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Frame")
+        on := IsPlus() && Cfg["PlusEffects"] && !Cfg["ReduceMotion"] && PlusThemeSet().Has(Cfg["PlusTheme"])
+        SetTimer(this.ticker, on ? 50 : 0)
+        if !on
+            this.Hide()
+    }
+    static Hide() {
+        if this.g
+            try this.g.Hide()
+    }
+    static Stop() {
+        if this.ticker
+            SetTimer(this.ticker, 0)
+        if this.g
+            try this.g.Destroy()
+        this.g := 0, this.Free()
+    }
+
+    static Frame() {
+        if !this.Want()
+            return this.Hide()
+        ; the layer: owned by the window (so it sits just above it), its size
+        if (!this.g || this.owner != MainGui.Hwnd) {
+            if this.g
+                try this.g.Destroy()
+            this.g := Gui("-Caption +ToolWindow +E0x80020 +E0x08000000 -DPIScale +Owner" MainGui.Hwnd, "FISCHXR effects")
+            this.g.Show("NA x0 y0 w1 h1"), this.owner := MainGui.Hwnd, this.W := 0
+        }
+        WinGetPos(&x, &y, &w, &h, "ahk_id " MainGui.Hwnd)
+        if (w != this.W || h != this.H)
+            this.Surface(w, h), this.kind := ""
+        if (this.kind != Cfg["PlusTheme"])
+            this.Seed(Cfg["PlusTheme"])
+        now := A_TickCount, dt := Min(0.1, (now - (this.last ? this.last : now)) / 1000), this.last := now
+        DllCall("gdiplus\GdipGraphicsClear", "Ptr", this.gr, "UInt", 0)
+        switch this.kind {
+            case "Sakura":   this.Petals(dt)
+            case "Midnight": this.Stars(dt, now)
+            case "Emerald":  this.Fireflies(dt, now)
+            case "Sunset":   this.Embers(dt)
+        }
+        bl := Buffer(4, 0), NumPut("UChar", 0, bl, 0), NumPut("UChar", 0, bl, 1), NumPut("UChar", 255, bl, 2), NumPut("UChar", 1, bl, 3)
+        pt := Buffer(8), sz := Buffer(8), src := Buffer(8, 0)
+        NumPut("Int", x, "Int", y, pt), NumPut("Int", w, "Int", h, sz)
+        DllCall("UpdateLayeredWindow", "Ptr", this.g.Hwnd, "Ptr", 0, "Ptr", pt, "Ptr", sz, "Ptr", this.dc, "Ptr", src, "UInt", 0, "Ptr", bl, "UInt", 2)
+        if !DllCall("IsWindowVisible", "Ptr", this.g.Hwnd)
+            this.g.Show("NA")
+        this.frames++
+    }
+
+    static Surface(w, h) {
+        this.Free()
+        if !Gdip.Start()
+            return
+        this.W := w, this.H := h
+        bi := Buffer(40, 0)
+        NumPut("UInt", 40, bi, 0), NumPut("Int", w, bi, 4), NumPut("Int", -h, bi, 8), NumPut("UShort", 1, bi, 12), NumPut("UShort", 32, bi, 14)
+        this.dc := DllCall("CreateCompatibleDC", "Ptr", 0, "Ptr")
+        this.hbm := DllCall("CreateDIBSection", "Ptr", this.dc, "Ptr", bi, "UInt", 0, "Ptr*", &bits := 0, "Ptr", 0, "UInt", 0, "Ptr")
+        this.old := DllCall("SelectObject", "Ptr", this.dc, "Ptr", this.hbm, "Ptr")
+        DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", w, "Int", h, "Int", w * 4, "Int", 0xE200B, "Ptr", bits, "Ptr*", &gp := 0)
+        DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", gp, "Ptr*", &gr := 0)
+        DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", gr, "Int", 4)
+        this.gp := gp, this.gr := gr
+    }
+    static Free() {
+        if this.gr
+            DllCall("gdiplus\GdipDeleteGraphics", "Ptr", this.gr), DllCall("gdiplus\GdipDisposeImage", "Ptr", this.gp)
+        if this.dc {
+            DllCall("SelectObject", "Ptr", this.dc, "Ptr", this.old)
+            DllCall("DeleteObject", "Ptr", this.hbm), DllCall("DeleteDC", "Ptr", this.dc)
+        }
+        this.gr := 0, this.gp := 0, this.dc := 0, this.hbm := 0
+    }
+
+    ; A fresh set of particles for a theme, spread over the window.
+    static Seed(kind) {
+        this.kind := kind, this.parts := [], this.shoot := 0
+        s := A_ScreenDPI / 96, W := this.W, H := this.H
+        n := Map("Sakura", 14, "Midnight", 28, "Emerald", 12, "Sunset", 18)[kind]
+        loop n
+            this.parts.Push(this.Spawn(kind, W, H, s, true))
+    }
+    static Spawn(kind, W, H, s, anywhere := false) {
+        R(a, b) => a + Random() * (b - a)
+        switch kind {
+            case "Sakura":
+                return {x: R(0, W), y: anywhere ? R(-20, H) : -12 * s, vx: R(-12, 12) * s, vy: R(22, 42) * s, rot: R(0, 360), vr: R(-90, 90)
+                    , size: R(8, 13) * s, a: Round(R(130, 195)), c: ["FFB7D5", "FF9CC8", "FFD1E3", "FFC4DD"][Random(1, 4)], sway: R(0, 6.28)}
+            case "Midnight":
+                return {x: R(0, W), y: R(0, H), size: R(1.8, 3.4) * s, ph: R(0, 6.28), sp: R(0.8, 2.4), c: ["FFFFFF", "CFE0FF", "E8EEFF"][Random(1, 3)]}
+            case "Emerald":
+                return {x: R(0, W), y: R(0, H), vx: R(-14, 14) * s, vy: R(-14, 14) * s, size: R(2.6, 4) * s, ph: R(0, 6.28), sp: R(1.5, 3)
+                    , c: ["B8FF6A", "7CFFB0", "D6FF8A"][Random(1, 3)]}
+            case "Sunset":
+                return {x: R(0, W), y: anywhere ? R(0, H) : H + 8 * s, vy: -R(22, 44) * s, size: R(2.4, 4.4) * s, ph: R(0, 6.28)
+                    , c: ["FFB347", "FF8A3D", "FFD27A"][Random(1, 3)]}
+        }
+    }
+
+    static Dot(x, y, d, argb) {
+        DllCall("gdiplus\GdipCreateSolidFill", "UInt", argb, "Ptr*", &br := 0)
+        DllCall("gdiplus\GdipFillEllipse", "Ptr", this.gr, "Ptr", br, "Float", x - d / 2, "Float", y - d / 2, "Float", d, "Float", d)
+        DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+    }
+    static Col(hex, a) => (Max(0, Min(255, Round(a))) << 24) | Integer("0x" hex)
+
+    ; Sakura: petals drifting down, swaying and tumbling.
+    static Petals(dt) {
+        s := A_ScreenDPI / 96
+        for i, p in this.parts {
+            p.sway += dt * 1.6, p.x += (p.vx + Sin(p.sway) * 14 * s) * dt, p.y += p.vy * dt, p.rot += p.vr * dt
+            if (p.y > this.H + 12 * s || p.x < -20 * s || p.x > this.W + 20 * s)
+                this.parts[i] := p := this.Spawn("Sakura", this.W, this.H, s)
+            DllCall("gdiplus\GdipTranslateWorldTransform", "Ptr", this.gr, "Float", p.x, "Float", p.y, "Int", 0)
+            DllCall("gdiplus\GdipRotateWorldTransform", "Ptr", this.gr, "Float", p.rot, "Int", 0)
+            DllCall("gdiplus\GdipCreateSolidFill", "UInt", this.Col(p.c, p.a), "Ptr*", &br := 0)
+            DllCall("gdiplus\GdipFillEllipse", "Ptr", this.gr, "Ptr", br, "Float", -p.size / 2, "Float", -p.size * 0.3, "Float", p.size, "Float", p.size * 0.6)
+            DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+            DllCall("gdiplus\GdipResetWorldTransform", "Ptr", this.gr)
+        }
+    }
+
+    ; Midnight: twinkling stars, and now and then a shooting star.
+    static Stars(dt, now) {
+        s := A_ScreenDPI / 96, t := now / 1000
+        for p in this.parts {
+            tw := Abs(Sin(p.ph + t * p.sp))
+            this.Dot(p.x, p.y, p.size * 3.2, this.Col(p.c, 22 * tw))              ; (a faint halo)
+            this.Dot(p.x, p.y, p.size * (0.7 + 0.5 * tw), this.Col(p.c, 60 + 190 * tw))
+        }
+        if (!this.shoot && Random(1, 120) = 1)
+            this.shoot := {x: Random(0, this.W // 2), y: Random(0, this.H // 3), t: 0}
+        if this.shoot {
+            sh := this.shoot, sh.t += dt, hx := sh.x + sh.t * 380 * s, hy := sh.y + sh.t * 150 * s
+            loop 12 {
+                k := A_Index / 12, px := hx - (1 - k) * 60 * s, py := hy - (1 - k) * 24 * s
+                this.Dot(px, py, (1 + 2 * k) * s, this.Col("E8F0FF", 200 * k * (1 - sh.t)))
+            }
+            if (sh.t >= 1)
+                this.shoot := 0
+        }
+    }
+
+    ; Emerald: fireflies wandering and glowing.
+    static Fireflies(dt, now) {
+        s := A_ScreenDPI / 96, t := now / 1000
+        for p in this.parts {
+            p.vx += (Random() - 0.5) * 40 * s * dt, p.vy += (Random() - 0.5) * 40 * s * dt
+            p.vx := Max(-20 * s, Min(20 * s, p.vx)), p.vy := Max(-20 * s, Min(20 * s, p.vy))
+            p.x += p.vx * dt, p.y += p.vy * dt
+            if (p.x < 0 || p.x > this.W)
+                p.vx := -p.vx, p.x := Max(0, Min(this.W, p.x))
+            if (p.y < 0 || p.y > this.H)
+                p.vy := -p.vy, p.y := Max(0, Min(this.H, p.y))
+            glow := 0.35 + 0.65 * (0.5 + 0.5 * Sin(p.ph + t * p.sp))
+            this.Dot(p.x, p.y, p.size * 5, this.Col(p.c, 26 * glow))
+            this.Dot(p.x, p.y, p.size * 2.4, this.Col(p.c, 60 * glow))
+            this.Dot(p.x, p.y, p.size, this.Col(p.c, 210 * glow))
+        }
+    }
+
+    ; Sunset: embers rising and fading.
+    static Embers(dt) {
+        s := A_ScreenDPI / 96
+        for i, p in this.parts {
+            p.ph += dt * 2, p.y += p.vy * dt, p.x += Sin(p.ph) * 10 * s * dt
+            if (p.y < -8 * s)
+                this.parts[i] := p := this.Spawn("Sunset", this.W, this.H, s)
+            life := Max(0, Min(1, p.y / this.H))
+            this.Dot(p.x, p.y, p.size * 3, this.Col(p.c, 30 * life))
+            this.Dot(p.x, p.y, p.size, this.Col(p.c, 60 + 170 * life))
+        }
+    }
 }
 
 ;==============================================================================
@@ -11135,6 +11823,7 @@ RemoteSpec() {
         "plus-glow-style", {key: "PlusGlowStyle", kind: "choice", plus: true, opts: [["Soft", "Soft"], ["Medium", "Medium"], ["Strong", "Strong"], ["Pulsing", "Pulsing"]]},
         "plus-theme", {key: "PlusTheme", kind: "choice", plus: true, opts: [["off", ""], ["Sakura", "Sakura"], ["Midnight", "Midnight"], ["Emerald", "Emerald"], ["Sunset", "Sunset"]]},
         "plus-accent", {key: "PlusAccent", kind: "hex", plus: true},
+        "theme-effects", {key: "PlusEffects", kind: "bool", plus: true},
         "quick-recast", {key: "PlusQuickRecast", kind: "bool", plus: true},
         "catch-rate", {key: "PlusRate", kind: "bool", plus: true},
         "panel-corner", {key: "PlusPanelCorner", kind: "choice", plus: true, opts: [["top-right", "TR"], ["top-left", "TL"], ["bottom-right", "BR"], ["bottom-left", "BL"]]})
@@ -11522,7 +12211,7 @@ class Blocked {
 ; all-time fishing, when your Discord account was made; Log out and Back.
 ;==============================================================================
 class Profile {
-    static g := 0, from := "Home", ticker := 0
+    static g := 0, from := "Home", ticker := 0, sessText := "", lifeText := "", roleText := "", roleIds := "", rolesAt := 0, rolesOk := false
     static Show() {
         if IsGuest()
             return Login.Show()
@@ -11540,8 +12229,29 @@ class Profile {
         ProfileRefresh(false)
     }
     static Close() => 0
+
+    ; The FISCHXR server roles this account has (asked of Discord, kept 5 minutes).
+    static Roles() {
+        if (this.rolesAt && A_TickCount - this.rolesAt < 300000)
+            return this.rolesOk
+        this.rolesAt := A_TickCount, this.rolesOk := false, this.roleIds := ""
+        if !(AuthTest.HasOwnProp("member") || InStr(Cfg["AuthScope"], "guilds.members.read"))
+            return false
+        tok := Unprotect(Cfg["AuthTok"])
+        if AuthTest.HasOwnProp("member") {
+            f := AuthTest.member, r := f(tok)
+        } else
+            r := DiscordMember(tok)
+        if (r.status = 200)
+            this.roleIds := r.HasOwnProp("roles") ? r.roles : "", this.rolesOk := true
+        return this.rolesOk
+    }
 }
 ProfileBack() => SwitchTab(Pages.Has(Profile.from) && Profile.from != "Profile" ? Profile.from : "Home")
+
+; The FISCHXR server's roles shown on the profile: [role ID, name, colour].
+FischxrRoles() => [["1552797683012472943", "Macro Developer", "A970FF"], ["1552797570269712485", "Macro Creator", "FFC940"]
+    , ["1553164118792601690", "Macro Tester", "3FE0F0"], ["1552813077072715786", "Content Creator", "FF4FD8"]]
 
 ProfileRefresh(withPicture) {
     if !(UiReady && UI.HasOwnProp("pfName"))
@@ -11551,20 +12261,35 @@ ProfileRefresh(withPicture) {
         UI.pfUser.Text := AuthState.user != "" ? "@" AuthState.user : ""
         UI.pfBadge.Text := IsPlus() ? "✦ FISCHXR Plus" (AuthState.access = "grant" ? " (given by the team)" : "") : "FISCHXR member"
         UI.pfBadge.SetFont("c" (IsPlus() ? "FF4FD8" : Pal.dim))
+        cw := (LEFT_W - 12) // 2
         secs := Stats.start ? (A_TickCount - Stats.start) // 1000 : 0
         live := (Stats.start && !Stats.banked) ? secs : 0
         rate := secs >= 60 ? Round(Stats.reels * 3600 / secs) " per hour" : "– per hour"
-        UI.pfSess.Text := Format("   {} casts`n   {} reels`n   {} fishing`n   {}", Stats.casts, Stats.reels, HMS(live ? secs : 0), rate)
-        UI.pfLife.Text := Format("   {} casts`n   {} reels`n   {} fishing", Cfg["LifeCasts"], Cfg["LifeReels"], HMS(Cfg["LifeSecs"] + live))
-        UI.pfAcct.Text := AuthState.id != "" ? "   Made " DiscordMade(AuthState.id) "   ·   ID " AuthState.id : ""
+        sess := [Stats.casts " casts", Stats.reels " reels", HMS(live ? secs : 0) " fishing", rate]
+        life := [Cfg["LifeCasts"] " casts", Cfg["LifeReels"] " reels", HMS(Cfg["LifeSecs"] + live) " fishing"]
+        st := "", lt := ""
+        for l in sess
+            st .= l "|"
+        for l in life
+            lt .= l "|"
+        if (st != Profile.sessText || withPicture)
+            Profile.sessText := st, SetPicHbm(UI.pfSess, CardHbm(cw, 108, "THIS SESSION", sess))
+        if (lt != Profile.lifeText || withPicture)
+            Profile.lifeText := lt, SetPicHbm(UI.pfLife, CardHbm(cw, 108, "ALL TIME", life))
         if withPicture {
-            hbm := ProfileAvatar(ZS(80), IsPlus() ? "FF4FD8" : Pal.accent, Pal.content)
-            hw := UI.pfAvatar.Hwnd
-            old := SendMessage(0x172, 0, hbm, hw), cur := SendMessage(0x173, 0, 0, hw)
-            if (old && old != cur)
-                DllCall("DeleteObject", "Ptr", old)
-            if (cur != hbm)
-                DllCall("DeleteObject", "Ptr", hbm)
+            SetPicHbm(UI.pfAvatar, ProfileAvatar(ToPhys(80), IsPlus() ? "FF4FD8" : Pal.accent, Pal.content))
+            chips := [], names := ""
+            if Profile.Roles() {
+                for r in FischxrRoles()
+                    if InStr(Profile.roleIds, '"' r[1] '"')
+                        chips.Push([r[2], r[3]]), names .= r[2] ", "
+                if !chips.Length
+                    chips.Push(["No FISCHXR roles", Pal.dim])
+            } else
+                chips.Push(["Sign in again to show your roles", Pal.dim])
+            Profile.roleText := RTrim(names, ", ")
+            made := AuthState.id != "" ? "Made " DiscordMade(AuthState.id) "   ·   ID " AuthState.id : ""
+            SetPicHbm(UI.pfAcct, CardHbm(LEFT_W, 76, "DISCORD ACCOUNT", [made], chips))
         }
     }
 }

@@ -1,7 +1,7 @@
 {
-  "version": "5.1.6",
+  "version": "5.2.9",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "82f4f83f2d1c02a923dbbc17c3cc1a246dd4f25f6f3b3f0f2561821213066c38",
-  "notes": "Versions of FISCHXR can now be locked to a Discord role by the FISCHXR team.",
+  "sha256": "2ef0306cd72deaa660c265db7377630936af7c9d720015588c9aad28d9c9ee0d",
+  "notes": "Noiseform: the bar is measured fresh on every reel, and frozen bar or fish readings are ignored.",
   "api": "https://fischxr-api.exoartar.workers.dev/"
 }
