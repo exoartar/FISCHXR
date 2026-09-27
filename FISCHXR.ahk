@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.3.0"
+APP_VER := "5.4.2"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -139,12 +139,12 @@ Defaults := Map(
     "AutoReconnect", 0, "RejoinLink", "roblox://experiences/start?placeId=16732694052", "RejoinWait", 40,
     "AuthMode", "", "AuthTok", "", "AuthExp", 0, "AuthName", "", "AuthId", "", "RodManual", "",
     "AuthScope", "", "GuildId", "", "PlusCached", 0, "PlusAccess", "", "ApiUrl", "", "ApiSeq", 0,
-    "AuthUser", "", "AuthAvatar", "", "Blocked", 0, "BlockedReason", "", "LifeCasts", 0, "LifeReels", 0, "LifeSecs", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium", "PlusGlowRun", 1, "PlusEffects", 1,
+    "AuthUser", "", "AuthAvatar", "", "AuthBanner", "", "AuthAccentCol", "", "GoalCatches", 0, "GoalMinutes", 0, "Blocked", 0, "BlockedReason", "", "LifeCasts", 0, "LifeReels", 0, "LifeSecs", 0, "PlusGlow", 1, "PlusGlowColor", "Pink", "PlusGlowStyle", "Medium", "PlusGlowRun", 1, "PlusEffects", 1,
     "PlusTheme", "", "PlusAccent", "", "PlusQuickRecast", 0, "PlusRate", 1, "PlusPanelCorner", "TR",
     "RejoinMax", 4, "RejoinResume", 1, "ReelSnaps", 1,
     "MiniHud", 1, "UpdateUrl", UPDATE_URL, "AutoUpdate", 1, "LastVersion", ""
 )
-TextKeys := "|AuthUser|AuthAvatar|BlockedReason|PlusAccess|ApiUrl|AuthScope|GuildId|PlusGlowColor|PlusGlowStyle|PlusTheme|PlusAccent|PlusPanelCorner|RodManual|AuthMode|AuthTok|AuthName|AuthId|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
+TextKeys := "|AuthBanner|AuthAccentCol|AuthUser|AuthAvatar|BlockedReason|PlusAccess|ApiUrl|AuthScope|GuildId|PlusGlowColor|PlusGlowStyle|PlusTheme|PlusAccent|PlusPanelCorner|RodManual|AuthMode|AuthTok|AuthName|AuthId|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
 BoolKeys := ["RodReequip", "UseNavKey", "AqAuto", "ColorSafe", "ReduceMotion", "Speak", "Sounds", "ShowSplash", "ShowHome", "OnTop", "ShowAreas"
     , "TotemAuto", "TotemSundial", "SovAuto", "HookStart", "HookErrors", "HookDisconnect", "HookJobs", "HookShots", "AutoReconnect", "RejoinResume", "ReelSnaps", "MiniHud", "AutoUpdate"]
 
@@ -172,6 +172,8 @@ NumSpec := Map(
     "SovCount",      {label: "Relics per recharge", unit: "", min: 1,   max: 20,   step: 1,   help: "How many times Enchant Rod and Confirm are pressed per recharge. Each uses one relic."},
     "SovStep",       {label: "Click spacing",    unit: "ms",  min: 100, max: 3000, step: 50,  help: "Pause between the recharge clicks."},
     "SovOpenWait",   {label: "Inventory open wait", unit: "ms", min: 200, max: 5000, step: 100, help: "Time allowed for the inventory to open before the relic is picked."},
+    "GoalCatches",   {label: "Stop after (Plus)", unit: "catches", min: 0, max: 5000, step: 10, help: "Plus: stops fishing after this many catches and tells Discord. 0 never stops."},
+    "GoalMinutes",   {label: "Stop after (Plus)", unit: "min", min: 0, max: 720, step: 15, help: "Plus: stops fishing after this long and tells Discord. 0 never stops."},
     "HookSummary",   {label: "Summary every",    unit: "min", min: 0,   max: 240,  step: 5,   help: "Sends a catch summary to Discord on this schedule while fishing. Off sends none."},
     "RejoinWait",    {label: "Load time",        unit: "s",   min: 10,  max: 180,  step: 5,   help: "How long to let Fisch load after Roblox reopens, before fishing resumes."},
     "RejoinMax",     {label: "Rejoins per hour", unit: "",    min: 1,   max: 20,   step: 1,   help: "After this many rejoins in an hour the macro stops, since something is wrong."}
@@ -220,11 +222,11 @@ OutReel := 0, OutShake := 0, OutAq := 0, CurTab := "Home"
 CurRod := 0, SelRod := 0, RodProfiles := [], ProfSeq := 0, VisionLog := []
 LiveBand := 0, LiveGeo := 0, LiveD := 0, LiveP := 0, LiveEp := -1, LiveT := 0, LiveHbm := 0, LiveRate := 0
 UpdAllowLocal := false, UpdLast := ""
-ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999, RemoteRebuild := false
+ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999, RemoteRebuild := false, GoalHit := "", HudView := 0, ReelActive := false
 ; Discord sign-in. The app's Client ID is public by design (no secret is used).
 DISCORD_CLIENT_ID := "1552771662787903568", DISCORD_PORT := 53682, DISCORD_INVITE := "https://discord.gg/ERkjTTYG4B"
 GUEST_TABS := ["Aquarium", "Sovereign", "Alerts", "Reconnect"]      ; (totems are open to guests)
-AuthState := {mode: "", id: "", name: "", user: "", avatar: "", plus: false, plusWhy: "", access: "", blockMsg: ""}
+AuthState := {mode: "", id: "", name: "", user: "", avatar: "", banner: "", accentCol: "", plus: false, plusWhy: "", access: "", blockMsg: ""}
 FISCHXR_GUILD_ID := "1552635887089745982"   ; the FISCHXR server's ID
 FISCHXR_API := ""             ; the FISCHXR service (read from update.json's "api" when empty)
 ; (a test harness may set AuthTest before loading the macro)
@@ -515,6 +517,8 @@ ToggleMacro() {
 }
 
 StartMacro() {
+    global GoalHit
+    GoalHit := ""
     SetTimer(RemoteReportSoon, -1500)
     global Running, RobloxHwnd, SovReels, ReconnectWhy, LogFile
     UsePhysicalPixels()
@@ -573,7 +577,11 @@ StopMacro(msg := "") {
             Alert("error", "Fishing stopped: " msg, true)
     } else {
         if was
-            Alert("stop", Format("Fishing stopped after {} min: {} casts, {} reels.", mins, Stats.casts, Stats.reels))
+            rate := mins >= 1 ? Format(", {} an hour", Round(Stats.reels * 60 / Max(1, mins))) : ""
+            if (GoalHit != "")
+                Alert("goal", Format("🎯 **Goal reached: {}.** Fishing stopped after {} min: {} casts, {} reels{}.", GoalHit, mins, Stats.casts, Stats.reels, rate))
+            else
+                Alert("stop", Format("Fishing stopped after {} min: {} casts, {} reels{}.", mins, Stats.casts, Stats.reels, rate))
         SetPhase("idle", "Ready", IdleHint())
         if was
             LogEvent("Stopped")
@@ -582,10 +590,10 @@ StopMacro(msg := "") {
 }
 
 MacroLoop() {
-    global LoopActive, CurRod, SovReels, LiveBand, LiveGeo
+    global LoopActive, CurRod, SovReels, LiveBand, LiveGeo, ReelActive
     LoopActive := true
     UsePhysicalPixels()
-    misses := 0, b := 0, geoKey := "", lastProgress := A_TickCount, badReels := 0
+    misses := 0, b := 0, bR := 0, geoR := 0, geoKey := "", lastProgress := A_TickCount, badReels := 0
     try {
         while Running {
             ; Watchdog: nothing cast, reeled or done for two minutes means the
@@ -594,7 +602,7 @@ MacroLoop() {
                 LogEvent("Nothing has happened for 2 minutes: starting fresh")
                 ReleaseMouse()
                 FreshStart("the loop stalled")
-                b := 0, geoKey := "", lastProgress := A_TickCount, misses := 0
+                b := 0, bR := 0, geoKey := "", lastProgress := A_TickCount, misses := 0
                 if (RegExMatch(Cfg["RodKey"], "^[0-9]$") && !ReequipRod()) {
                     if ReconnectDue()
                         continue
@@ -631,15 +639,22 @@ MacroLoop() {
             if (CurRodName = "" && Cfg["RodManual"] = "" && A_TickCount - RodReadAt > 20000)
                 ReadRodFirst()
             ; Jobs between catches: aquarium, totems, Sovereign recharge.
+            if GoalCheck()                              ; (Plus: a time goal reached between casts)
+                break
             if RunDueJobs() {
                 lastProgress := A_TickCount
                 ForgetRod()                             ; (a job may have changed what's in hand)
                 continue
             }
-            a := AreaRect("Reel", cr), geo := VisionGeo(a)
-            k := geo.x "," geo.y "," geo.w "," geo.h
+            a := AreaRect("Reel", cr), geo := VisionGeo(a), geoR := 0
+            ; Bellona's Waraxe: two reels side by side, one each side of the
+            ; usual one: the left track is read as the reel, the right beside it
+            if InStr(CurRodName, "Bellona") {
+                geo := VisionGeo(DualArea(a, cr, -1)), geoR := VisionGeo(DualArea(a, cr, 1))
+            }
+            k := geo.x "," geo.y "," geo.w "," geo.h (geoR ? "|dual" : "")
             if (k != geoKey)
-                b := BandGrab(geo.w, geo.h), geoKey := k
+                b := BandGrab(geo.w, geo.h), bR := geoR ? BandGrab(geoR.w, geoR.h) : 0, geoKey := k
             LiveBand := b, LiveGeo := geo
 
             if (Cfg["RodReequip"] && misses >= 3) {
@@ -687,7 +702,9 @@ MacroLoop() {
             SetPhase("reel", "Reeling", "Rod: " found.prof.name)
             chose := A_TickCount - ChoseFishAt < 15000
             ReelMouseSpot(chose)
-            res := Reel(b, geo, base, found)
+            ReelActive := true                      ; (decoration waits: the reel gets the thread)
+            try res := Reel(b, geo, base, found, bR, geoR)
+            finally ReelActive := false
             ; A reel that ended early (lost tracking) while its UI is still up
             ; is resumed rather than cast over.
             resumes := 0
@@ -708,6 +725,7 @@ MacroLoop() {
             if ReconnectDue()          ; the game dropped mid-reel: don't count it
                 continue
             Stats.reels++, lastProgress := A_TickCount
+            GoalCheck()
             Cfg["LifeReels"] += 1, Save("LifeReels")
             SovReels++
             UpdateStats()
@@ -720,7 +738,7 @@ MacroLoop() {
                 badReels := 0
             if (badReels >= 2) {
                 FreshStart("two reels in a row went badly", res.HasOwnProp("memKey") ? res.memKey : "")
-                b := 0, geoKey := "", badReels := 0
+                b := 0, bR := 0, geoKey := "", badReels := 0
             }
             SetGauge(0.36, 0.64, 0.5, false)
             if res.phantom
@@ -738,7 +756,9 @@ MacroLoop() {
                 LogEvent("The reel was still going: kept reeling instead of casting")
                 SetPhase("reel", "Reeling", "Rod: " found.prof.name)
                 ReelMouseSpot(A_TickCount - ChoseFishAt < 15000)
-                Reel(b, geo, base, found)
+                ReelActive := true
+                try Reel(b, geo, base, found, bR, geoR)
+                finally ReelActive := false
                 lastProgress := A_TickCount
                 if !Nap(RecastGap())
                     break
@@ -1022,7 +1042,9 @@ ClickShake() {
 ; brakes on a time-optimal switching curve, so the bar stops with the fish on
 ; its centre line instead of sliding past it.
 ;------------------------------------------------------------------------------
-Reel(b, geo, base, r) {
+Reel(b, geo, base, r, bR := 0, geoR := 0) {
+    global HudView
+    dualSt := {lc: -1, lt: 0, rc: -1, rt: 0}              ; (Bellona's Waraxe: each bar's last move)
     global CurRod, LiveD, LiveP, LiveEp, LiveT, LiveRate
     p := r.prof, w := b.w
     if p.notes
@@ -1071,6 +1093,10 @@ Reel(b, geo, base, r) {
         if (frame > 0 || !IsObject(d)) {
             VisionGrab(b, geo)
             d := VisionScan(b, p, f)
+            if bR {                                       ; Bellona's Waraxe: the other reel too, merged
+                VisionGrab(bR, geoR)
+                d := DualMerge(d, VisionScan(bR, p, f), dualSt)
+            }
             ; Noiseform: a "bar" that stays put while the mouse has been held
             ; (or let go) for 0.45 s, away from both ends, can't be the bar
             ; (it would be moving): the emblem read as one. Steer by prediction.
@@ -1097,12 +1123,18 @@ Reel(b, geo, base, r) {
                 if ((nt := NoteWatch.Target(A_TickCount / 1000, d)) >= 0)
                     d.fx := nt, d.fish := true, aim := "note"
             }
+            ; (what the fishing panel draws for this rod)
+            HudView := {bandW: b.w, notes: p.notes ? NoteWatch.notes : 0, noteW: p.notes ? NoteWatch.aw : 0
+                , want: p.kind = "box" && ZoneWatch.grab ? ZoneWatch.want : "", wantAt: ZoneWatch.wantAt
+                , zone: aim = "zone" ? d.fx / b.w : -1, dual: bR ? dualSt : 0}
         }
         frame++
         if (Mod(frame, 4) = 1)
             ; shape-read rods (Noiseform, Pinion's Aria) are present when their shape is:
             ; their tubes have no crisp outline to check
             ep := p.kind != "" ? -1 : EdgesPresent(b, geo, p)
+            if (bR && ep != 1 && p.kind = "")             ; (either reel still up)
+                ep := Max(ep, EdgesPresent(bR, geoR, p))
         now := A_TickCount
         LiveD := d, LiveP := p, LiveEp := ep, LiveT := now     ; for the Live tab
         if (now - rateT >= 1000)
@@ -1767,6 +1799,21 @@ ReelCentred(d, w) {
     return !d.fish || Abs(d.fx / w - 0.5) <= 0.25
 }
 
+; Plus: stop fishing at a goal (so many catches, or so long), and say so in Discord.
+GoalCheck() {
+    global GoalHit
+    if !(Running && IsPlus())
+        return false
+    hit := Cfg["GoalCatches"] && Stats.reels >= Cfg["GoalCatches"] ? Stats.reels " catches"
+        : Cfg["GoalMinutes"] && Stats.start && A_TickCount - Stats.start >= Cfg["GoalMinutes"] * 60000 ? Cfg["GoalMinutes"] " minutes" : ""
+    if (hit = "" || GoalHit != "")
+        return false
+    GoalHit := hit
+    LogEvent("Goal reached (" hit "): stopping")
+    SetTimer(() => (Running ? ToggleMacro() : 0), -10)
+    return true
+}
+
 
 ;==============================================================================
 ; Auto aquarium. Opens Fisch's aquarium panel, scrolls through the fish food
@@ -2206,6 +2253,7 @@ BuildGui() {
     global MainGui, UiReady, UI, Clickables, Pages, FocusGlobal, DescOf, EditCtls
     global Steppers, Toggles, KeyBtns, SegCtls, Swatches, Choices, FocusIdx, FocusOn, Hover, ColX, RowBase
     UiReady := false
+    RoundBtns.Reset()
     UI := {tabs: Map(), navRows: Map(), navMode: "basic", menuBtns: Map(), units: Map(), sbLeft: [], sbRight: []
         , gX: 0, gW: 100, gLive: -1, phaseColor: "", dash: [], rodRows: [], totemRows: [], liveVals: Map(), hiddenForHud: false}
     Clickables := Map(), Pages := Map(), FocusGlobal := [], DescOf := Map(), EditCtls := Map()
@@ -2231,7 +2279,7 @@ BuildGui() {
     BuildMenus()
     LockPanel.Build()
     BuildProfile()
-    RoundButtons()
+    RoundBtns.BuildMain()
     UiReady := true
     RodsChanged(), TotemsChanged()
 }
@@ -2370,6 +2418,8 @@ BuildFishing() {
         , "Navigation presses Enter, which needs Fisch's shake mode set to Navigation. Click hunts for the white shake button.")
     ActionBtn("Fishing", 3, "Set reel area", (*) => StartCalibrate("Reel"), "Freeze the screen while a reel bar is up and drag a box just inside the track.")
     ActionBtn("Fishing", 4, "Set shake area", (*) => StartCalibrate("Shake"), "Click mode only: freeze the screen and drag a box where shake buttons pop up.")
+    Stepper("Fishing", 6, "GoalCatches")
+    Stepper("Fishing", 7, "GoalMinutes")
     Toggle("Fishing", 5, "ShowAreas", "Show scan areas on Roblox", "Draws the reel and shake areas and the aquarium button's spot on the Roblox window.")
     Pages["Fishing"].desc := "Equip your rod, face the water and press Start."
 }
@@ -3555,7 +3605,7 @@ OpenSnapshots() {
 ; focus from Roblox (WS_EX_NOACTIVATE) and can be dragged anywhere.
 ;------------------------------------------------------------------------------
 class Hud {
-    static g := 0, t := 0, d := 0, s := 0, stop := 0, gP := 0, W := 284, gw := 256, lastG := 0, live := -1
+    static g := 0, t := 0, d := 0, s := 0, stop := 0, gP := 0, W := 284, H := 156, gw := 256, vh := 54, lastG := 0, live := -1
     static Build() {
         g := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000000", APP_NAME " panel")
         g.BackColor := Pal.strip
@@ -3565,16 +3615,17 @@ class Hud {
             return g.Add("Text", Format("x{} y{} w{} h{} Background{} {}", ZS(x), ZS(y), ZS(w), ZS(h), bg, extra), text)
         }
         W := this.W
-        A(0, 0, 3, 112, "", "body", 9, Pal.text, Pal.accent)
+        A(0, 0, 3, this.H, "", "body", 9, Pal.text, Pal.accent)
         A(14, 8, 150, 16, "FISCHXR", "body", 8, Pal.dim, Pal.strip, "0x200")
         this.stop := A(W - 84, 6, 74, 22, "■  Stop", "body", 9, Pal.text, Pal.field, "Center 0x200")
         this.t := A(14, 26, W - 24, 24, "", "display", 12, Pal.text, Pal.strip, "0x200 0x4000")
         this.d := A(14, 50, W - 24, 18, "", "body", 9, Pal.dim, Pal.strip, "0x200 0x4000")
-        this.gP := g.Add("Picture", Format("x{} y{} w{} h{}", ZS(14), ZS(70), ZS(this.gw), ZS(13))
-            , "HBITMAP:" GaugeHbm(ToPhys(this.gw), ToPhys(13), ToPhys(4), ToPhys(5), ToPhys(8), 0, 0, 0.36, 0.64, 0.5, false, Pal.strip, false))
-        this.s := A(14, 88, W - 24, 18, "", "body", 9, Pal.dim, Pal.strip, "0x200 0x4000")
+        ; the rod view: the reel as the macro reads it, drawn for the rod
+        this.gP := g.Add("Picture", Format("x{} y{} w{} h{}", ZS(14), ZS(70), ZS(this.gw), ZS(this.vh))
+            , "HBITMAP:" RodViewHbm(ToPhys(this.gw), ToPhys(this.vh), 0.36, 0.64, 0.5, false, 0))
+        this.s := A(14, 70 + this.vh + 6, W - 24, 18, "", "body", 9, Pal.dim, Pal.strip, "0x200 0x4000")
         this.g := g, this.live := -1
-        g.Show(Format("w{} h{} Hide", ZS(W), ZS(112)))
+        g.Show(Format("w{} h{} Hide", ZS(W), ZS(this.H)))
     }
     static Show() {
         if (this.g && this.g.BackColor != Pal.strip)
@@ -3585,7 +3636,7 @@ class Hud {
         MonitorGetWorkArea(HudMonitor(), &L, &T, &R, &B)
         pw := Round(ZS(this.W) * A_ScreenDPI / 96)
         ; (Plus can put it in any corner)
-        corner := IsPlus() ? Cfg["PlusPanelCorner"] : "TR", ph := Round(ZS(112) * A_ScreenDPI / 96)
+        corner := IsPlus() ? Cfg["PlusPanelCorner"] : "TR", ph := Round(ZS(this.H) * A_ScreenDPI / 96)
         x := InStr(corner, "L") ? L + 16 : R - pw - 16
         y := InStr(corner, "B") ? B - ph - Round((B - T) * 0.06) : T + Round((B - T) * 0.06)
         if Cfg["ReduceMotion"] {
@@ -3629,10 +3680,10 @@ class Hud {
         }
     }
     static Gauge(l, r, f, live) {
-        if (!this.Visible() || A_TickCount - this.lastG < 80)
+        if (!this.Visible() || A_TickCount - this.lastG < (ReelActive ? 200 : 80))    ; (5 a second while reeling)
             return
         this.lastG := A_TickCount
-        try SetPicHbm(this.gP, GaugeHbm(ToPhys(this.gw), ToPhys(13), ToPhys(4), ToPhys(5), ToPhys(8), 0, 0, l, r, f, live, Pal.strip, false))
+        try SetPicHbm(this.gP, RodViewHbm(ToPhys(this.gw), ToPhys(this.vh), l, r, f, live, HudView))
     }
     ; Where the panel is on screen (for checks that must look past it), or 0.
     static Rect() {
@@ -4110,15 +4161,12 @@ BuildProfile() {
         Pages["Profile"].ctls.Push(c)
         return c
     }
-    UI.pfAvatar := P(x, 18, 80, 80, ProfileAvatar(ToPhys(80), Pal.accent, Pal.content))
-    UI.pfName := AddT("Profile", x + 96, 22, LEFT_W - 96, 34, "", "display", 18, Pal.text, Pal.content, "0x200")
-    UI.pfUser := AddT("Profile", x + 96, 56, LEFT_W - 96, 20, "", "body", 10, Pal.dim, Pal.content, "0x200")
-    UI.pfBadge := AddT("Profile", x + 96, 78, LEFT_W - 96, 20, "", "body", 9, Pal.dim, Pal.content, "0x200")
-    UI.pfSess := P(x, 108, cw, 108, CardHbm(cw, 108, "THIS SESSION", []))
-    UI.pfLife := P(x + cw + 12, 108, cw, 108, CardHbm(cw, 108, "ALL TIME", []))
-    UI.pfAcct := P(x, 224, LEFT_W, 76, CardHbm(LEFT_W, 76, "DISCORD ACCOUNT", []))
+    UI.pfHead := P(x, 6, LEFT_W, 108, ProfileHeaderHbm(LEFT_W, 108))       ; (banner, picture, name: one drawing)
+    UI.pfSess := P(x, 120, cw, 100, CardHbm(cw, 100, "THIS SESSION", []))
+    UI.pfLife := P(x + cw + 12, 120, cw, 100, CardHbm(cw, 100, "ALL TIME", []))
+    UI.pfAcct := P(x, 228, LEFT_W, 76, CardHbm(LEFT_W, 76, "DISCORD ACCOUNT", []))
     for it in [["Log out", x, false, (*) => SignOut()], ["Back", x + LEFT_W - 150, true, (*) => ProfileBack()]] {
-        b := P(it[2], 310, 150, 34, BtnHbm(150, 34, it[1], it[3], false))
+        b := P(it[2], 312, 150, 34, BtnHbm(150, 34, it[1], it[3], false))
         Clickables[b.Hwnd] := {kind: "btn", fn: it[4], obj: b, bg: Pal.content, hv: Pal.content
             , onHover: ((ctl, lab, acc) => (hot) => SetPicHbm(ctl, BtnHbm(150, 34, lab, acc, hot)))(b, it[1], it[3])}
     }
@@ -4178,6 +4226,14 @@ GpRoundFill(g, x, y, w, h, r, argb) {
 ; Text in an Inter face at px pixels; align 0 left, 1 centre. Returns its width.
 GpText(g, str, face, px, rgb, x, y, w, h, align := 0, measureOnly := false) {
     fam := SignArt.Family(face)
+    ; Names in "fancy" letters (Unicode's mathematical script, bold, fraktur...)
+    ; aren't in Inter: Cambria Math has them all; without it, plain letters.
+    if RegExMatch(str, "[\x{10000}-\x{10FFFF}]") {
+        if (mf := MathFontFamily())
+            fam := mf
+        else
+            str := PlainLetters(str)
+    }
     if !fam
         return 0
     DllCall("gdiplus\GdipCreateFont", "Ptr", fam, "Float", px, "Int", 0, "Int", 2, "Ptr*", &font := 0)
@@ -4215,9 +4271,9 @@ CardHbm(w, h, title, lines, chips := "") {
     GpSurface(W, H, &bmp, &g)
     GpRoundFill(g, 0, 0, W, H, 10 * s, 0xFF000000 | Integer("0x" Pal.field))
     GpText(g, title, "Inter SemiBold", 11 * s, Pal.dim, 14 * s, 8 * s, W - 28 * s, 18 * s)
-    y := 30 * s
+    y := 28 * s
     for ln in lines
-        GpText(g, ln, "Inter", 13.5 * s, Pal.text, 14 * s, y, W - 28 * s, 18 * s), y += 18 * s
+        GpText(g, ln, "Inter", 13.5 * s, Pal.text, 14 * s, y, W - 28 * s, 17 * s), y += 17 * s
     if IsObject(chips) {
         x := 14 * s, y += 4 * s
         for c in chips {
@@ -4238,6 +4294,372 @@ BtnHbm(w, h, label, accent, hot) {
     GpRoundFill(g, 0, 0, W, H, 9 * s, 0xFF000000 | Integer("0x" fill))
     GpText(g, label, "Inter Medium", 13.5 * s, accent ? Pal.ink : Pal.text, 0, 0, W, H, 1)
     return GpDone(bmp, g)
+}
+
+;------------------------------------------------------------------------------
+; Rounded buttons. Every button-like control in the page area (buttons,
+; choices, keys, steppers, totem chips) and in dialogs gets a drawn, rounded
+; twin laid over it, made at the control's own pixel size. The plain control
+; stays underneath doing its job (its text changes, clicks, focus); the twin
+; follows its text, colours, position and visibility. Colours are heard as
+; they're set: the Text control's Opt and SetFont are wrapped to note them.
+;------------------------------------------------------------------------------
+class RoundBtns {
+    static pairs := [], ticker := 0, bg := Map(), fg := Map(), byH := Map(), origOpt := 0, origFont := 0
+    static kinds := "|btn|choice|key|step|tt|dlg|"
+    static __New() {
+        if (this != RoundBtns)
+            return
+        this.origOpt := Gui.Control.Prototype.GetMethod("Opt"), this.origFont := Gui.Control.Prototype.GetMethod("SetFont")
+        Gui.Text.Prototype.DefineProp("Opt", {Call: RoundOptHook})
+        Gui.Text.Prototype.DefineProp("SetFont", {Call: RoundFontHook})
+    }
+    static Reset() {
+        for pr in this.pairs
+            try Clickables.Delete(pr.pic.Hwnd)
+        this.pairs := [], this.bg := Map(), this.fg := Map(), this.byH := Map()
+    }
+    ; after the window is built: every button in the page area
+    static BuildMain() {
+        list := []
+        for hwnd, e in Clickables
+            if (InStr(this.kinds, "|" e.kind "|") && IsObject(e.obj))
+                list.Push([hwnd, e])
+        for it in list {
+            e := it[2], c := e.obj
+            try {
+                if (c.Type != "Text" || c.Gui.Hwnd != MainGui.Hwnd)
+                    continue
+                c.GetPos(&x, &y)
+                if (x < ZS(PAGE_X) - 6)                    ; (the sidebar keeps its own look)
+                    continue
+                this.Add(c, e.HasOwnProp("bg") ? e.bg : "", "", Pal.content, e)
+            }
+        }
+        this.Start()
+    }
+    static Start() {
+        if !this.ticker
+            this.ticker := ObjBindMethod(this, "Sync")
+        SetTimer(this.ticker, 40)
+    }
+    static Add(c, bg, fg, parentBg, e := 0) {
+        if (c.Type != "Text" || RegExMatch(c.Text, "[\x{E000}-\x{F8FF}]"))     ; (icon-font glyphs stay as they are)
+            return
+        if !e
+            e := Clickables.Has(c.Hwnd) ? Clickables[c.Hwnd] : 0
+        if (bg != "" && !this.bg.Has(c.Hwnd))
+            this.bg[c.Hwnd] := bg
+        if (fg != "")
+            this.fg[c.Hwnd] := fg
+        c.GetPos(&x, &y, &w, &h)
+        pr := {ctl: c, pic: 0, par: parentBg, key: "", hot: false, e: e, mix: 0, press: false, fading: false}
+        pr.pic := c.Gui.Add("Picture", Format("x{} y{} w{} h{}", x, y, w, h), "HBITMAP:" this.Hbm(pr))
+        this.origOpt.Call(c, "+0x4000000")                 ; (clipped: it never paints over its twin)
+        DllCall("SetWindowPos", "Ptr", pr.pic.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x13)
+        if e {
+            Clickables[pr.pic.Hwnd] := e
+            e.onHover := ((p) => (hot) => RoundBtns.HoverTo(p, hot))(pr)
+        }
+        this.byH[c.Hwnd] := pr, this.byH[pr.pic.Hwnd] := pr
+        pr.pic.Visible := c.Visible
+        this.pairs.Push(pr)
+    }
+    ; the twin's picture, as the control looks now
+    static Hbm(pr, &key := "") {
+        c := pr.ctl, rc := Buffer(16)
+        DllCall("GetClientRect", "Ptr", c.Hwnd, "Ptr", rc)
+        W := Max(4, NumGet(rc, 8, "Int")), H := Max(4, NumGet(rc, 12, "Int"))
+        bg := this.bg.Has(c.Hwnd) ? this.bg[c.Hwnd] : Pal.field
+        if (pr.mix > 0 && pr.e && pr.e.HasOwnProp("hv") && pr.e.hv != "")
+            bg := Mix(bg, pr.e.hv, pr.mix)                     ; (the hover, fading in and out)
+        if pr.press
+            bg := Mix(bg, "000000", 0.22)
+        v := Integer("0x" bg), lum := (2 * ((v >> 16) & 255) + 5 * ((v >> 8) & 255) + (v & 255)) >> 3
+        fg := this.fg.Has(c.Hwnd) ? this.fg[c.Hwnd] : (lum > 150 ? Pal.ink : Pal.text)
+        key := c.Text "|" bg "|" fg "|" W "x" H "|" pr.press
+        return RoundBtnHbm(W, H, c.Text, bg, fg, pr.par, pr.press ? Max(1, Round(ToPhys(1000) / 1000)) : 0)
+    }
+    ; the hover fades in and out over ~0.1 s (at once with Reduce motion)
+    static HoverTo(pr, hot) {
+        pr.hot := hot
+        if Cfg["ReduceMotion"] {
+            pr.mix := hot ? 1 : 0
+            return this.Render(pr)
+        }
+        pr.fading := true
+        step() {
+            pr.mix := hot ? Min(1, pr.mix + 0.25) : Max(0, pr.mix - 0.2)
+            RoundBtns.Render(pr)
+            if ((hot && pr.mix >= 1) || (!hot && pr.mix <= 0) || pr.hot != hot)
+                pr.fading := false, SetTimer(step, 0)
+        }
+        SetTimer(step, 18)
+    }
+    ; a click: the button presses in for a moment
+    static PressFx(h) {
+        if !this.byH.Has(h)
+            return
+        pr := this.byH[h], pr.press := true
+        this.Render(pr)
+        SetTimer(() => (pr.press := false, RoundBtns.Render(pr)), -110)
+    }
+    static Render(pr) {
+        try {
+            hbm := this.Hbm(pr, &key)
+            if (key = pr.key)
+                return DllCall("DeleteObject", "Ptr", hbm)
+            pr.key := key
+            SetPicHbm(pr.pic, hbm)
+        }
+    }
+    ; 25 times a second while the window shows: the twins keep up
+    static Sync() {
+        if ReelActive                                         ; (while reeling: waits)
+            return
+        if !(IsObject(MainGui) && (DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd) || (IsObject(Dialog.g) && DllCall("IsWindowVisible", "Ptr", Dialog.g.Hwnd))))
+            return
+        keep := []
+        for pr in this.pairs {
+            try {
+                c := pr.ctl, vis := c.Visible
+                if (pr.pic.Visible != vis)
+                    pr.pic.Visible := vis
+                if vis {                                   ; (hidden pages: nothing more to do)
+                    c.GetPos(&x, &y, &w, &h), pr.pic.GetPos(&px, &py, &pw, &ph)
+                    if (x != px || y != py || w != pw || h != ph)
+                        pr.pic.Move(x, y, w, h), pr.key := ""
+                    k0 := pr.key
+                    rc := Buffer(16), DllCall("GetClientRect", "Ptr", c.Hwnd, "Ptr", rc)
+                    ; (cheap check first: only redraw when something about it changed)
+                    if (k0 = "" || !InStr(k0, c.Text "|") || (!pr.fading && pr.mix = 0 && !pr.press && !InStr(k0, (this.bg.Has(c.Hwnd) ? this.bg[c.Hwnd] : Pal.field) "|")))
+                        this.Render(pr)
+                }
+                keep.Push(pr)
+            }
+        }
+        this.pairs := keep
+    }
+}
+RoundOptHook(this, opts) {
+    if RegExMatch(opts, "i)(?:^|\s)\+?Background([0-9A-F]{6})\b", &m)
+        RoundBtns.bg[this.Hwnd] := StrUpper(m[1])
+    return RoundBtns.origOpt.Call(this, opts)
+}
+RoundFontHook(this, opts := "", name := "") {
+    if RegExMatch(opts, "i)(?:^|\s)c([0-9A-F]{6})\b", &m)
+        RoundBtns.fg[this.Hwnd] := StrUpper(m[1])
+    return name != "" ? RoundBtns.origFont.Call(this, opts, name) : RoundBtns.origFont.Call(this, opts)
+}
+
+; A rounded button picture, W x H pixels: its colour on the colour behind
+; it, the words centred (Segoe UI, as the rest of the window; Inter if not).
+RoundBtnHbm(W, H, text, bg, fg, parentBg, inset := 0) {
+    if !Gdip.Start()
+        return 0
+    s := ToPhys(1000) / 1000
+    DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", W, "Int", H, "Int", 0, "Int", 0x26200A, "Ptr", 0, "Ptr*", &bmp := 0)
+    DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", bmp, "Ptr*", &g := 0)
+    DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", g, "Int", 4), DllCall("gdiplus\GdipSetTextRenderingHint", "Ptr", g, "Int", 5)
+    DllCall("gdiplus\GdipGraphicsClear", "Ptr", g, "UInt", 0xFF000000 | Integer("0x" parentBg))
+    GpRoundFill(g, inset, inset, W - 2 * inset, H - 2 * inset, Min(H / 2, 7 * s), 0xFF000000 | Integer("0x" bg))
+    static fam := -1
+    if (fam = -1) {
+        fam := 0
+        DllCall("gdiplus\GdipCreateFontFamilyFromName", "WStr", "Segoe UI", "Ptr", 0, "Ptr*", &fam)
+        if !fam {
+            SignArt.Start()
+            fam := SignArt.Family("Inter")
+        }
+    }
+    if (fam && text != "") {
+        DllCall("gdiplus\GdipCreateFont", "Ptr", fam, "Float", Min(13.3 * s, H * 0.56), "Int", 0, "Int", 2, "Ptr*", &font := 0)
+        DllCall("gdiplus\GdipCreateStringFormat", "Int", 0x1000, "UShort", 0, "Ptr*", &fmt := 0)
+        DllCall("gdiplus\GdipSetStringFormatAlign", "Ptr", fmt, "Int", 1), DllCall("gdiplus\GdipSetStringFormatLineAlign", "Ptr", fmt, "Int", 1)
+        DllCall("gdiplus\GdipSetStringFormatTrimming", "Ptr", fmt, "Int", 3)
+        DllCall("gdiplus\GdipCreateSolidFill", "UInt", 0xFF000000 | Integer("0x" fg), "Ptr*", &br := 0)
+        rc := Buffer(16), NumPut("Float", 2, "Float", 0, "Float", W - 4, "Float", H, rc)
+        DllCall("gdiplus\GdipDrawString", "Ptr", g, "WStr", text, "Int", -1, "Ptr", font, "Ptr", rc, "Ptr", fmt, "Ptr", br)
+        DllCall("gdiplus\GdipDeleteBrush", "Ptr", br), DllCall("gdiplus\GdipDeleteStringFormat", "Ptr", fmt), DllCall("gdiplus\GdipDeleteFont", "Ptr", font)
+    }
+    DllCall("gdiplus\GdipDeleteGraphics", "Ptr", g)
+    DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", bmp, "Ptr*", &hbm := 0, "UInt", 0xFF000000 | Integer("0x" parentBg))
+    DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
+    return hbm
+}
+
+; The profile's header: the Discord banner (or the accent colour, graded),
+; the picture overlapping its edge, the name, @username and Plus badge.
+ProfileHeaderHbm(w, h) {
+    s := ToPhys(1000) / 1000, W := ToPhys(w), H := ToPhys(h), bh := Round(58 * s)
+    GpSurface(W, H, &bmp, &g)
+    ; the banner: rounded top corners
+    DllCall("gdiplus\GdipCreatePath", "Int", 0, "Ptr*", &pb := 0)
+    r := 10 * s, d := r * 2
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", pb, "Float", 0, "Float", 0, "Float", d, "Float", d, "Float", 180, "Float", 90)
+    DllCall("gdiplus\GdipAddPathArc", "Ptr", pb, "Float", W - d, "Float", 0, "Float", d, "Float", d, "Float", 270, "Float", 90)
+    DllCall("gdiplus\GdipAddPathLine", "Ptr", pb, "Float", W, "Float", bh, "Float", 0, "Float", bh)
+    DllCall("gdiplus\GdipClosePathFigure", "Ptr", pb)
+    DllCall("gdiplus\GdipSetClipPath", "Ptr", g, "Ptr", pb, "Int", 0)
+    img := ProfileBannerImage()
+    if img {
+        DllCall("gdiplus\GdipGetImageWidth", "Ptr", img, "UInt*", &iw := 0), DllCall("gdiplus\GdipGetImageHeight", "Ptr", img, "UInt*", &ih := 0)
+        sc := Max(W / iw, bh / ih), dw := iw * sc, dh := ih * sc                     ; (cover the banner, centred)
+        DllCall("gdiplus\GdipDrawImageRect", "Ptr", g, "Ptr", img, "Float", (W - dw) / 2, "Float", (bh - dh) / 2, "Float", dw, "Float", dh)
+        DllCall("gdiplus\GdipDisposeImage", "Ptr", img)
+    } else {
+        c1 := AuthState.accentCol != "" ? AuthState.accentCol : (IsPlus() ? "FF4FD8" : Pal.accent)
+        rc := Buffer(16), NumPut("Float", 0, "Float", 0, "Float", W, "Float", bh, rc)
+        DllCall("gdiplus\GdipCreateLineBrushFromRect", "Ptr", rc, "UInt", 0xFF000000 | Integer("0x" c1), "UInt", 0xFF000000 | Integer("0x" Mix(c1, Pal.content, 0.55)), "Int", 0, "Int", 0, "Ptr*", &lb := 0)
+        DllCall("gdiplus\GdipFillRectangle", "Ptr", g, "Ptr", lb, "Float", 0, "Float", 0, "Float", W, "Float", bh)
+        DllCall("gdiplus\GdipDeleteBrush", "Ptr", lb)
+    }
+    ; a soft fade into the page at the banner's foot
+    rc := Buffer(16), NumPut("Float", 0, "Float", bh * 0.5, "Float", W, "Float", bh * 0.5 + 1, rc)
+    DllCall("gdiplus\GdipCreateLineBrushFromRect", "Ptr", rc, "UInt", 0x00000000 | Integer("0x" Pal.content), "UInt", 0x90000000 | Integer("0x" Pal.content), "Int", 1, "Int", 0, "Ptr*", &fb := 0)
+    DllCall("gdiplus\GdipFillRectangle", "Ptr", g, "Ptr", fb, "Float", 0, "Float", bh * 0.5, "Float", W, "Float", bh * 0.5 + 1)
+    DllCall("gdiplus\GdipDeleteBrush", "Ptr", fb)
+    DllCall("gdiplus\GdipResetClip", "Ptr", g), DllCall("gdiplus\GdipDeletePath", "Ptr", pb)
+    ; the picture, overlapping the banner's edge, with a ring of the page's colour
+    av := Round(70 * s), ax := Round(16 * s), ay := bh - Round(34 * s)
+    GpRoundFill(g, ax - 4 * s, ay - 4 * s, av + 8 * s, av + 8 * s, (av + 8 * s) / 2, 0xFF000000 | Integer("0x" Pal.content))
+    hb := ProfileAvatar(av, IsPlus() ? "FF4FD8" : Pal.accent, Pal.content)
+    if hb {
+        DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hb, "Ptr", 0, "Ptr*", &ab := 0)
+        DllCall("gdiplus\GdipCreatePath", "Int", 0, "Ptr*", &pc := 0)
+        DllCall("gdiplus\GdipAddPathEllipse", "Ptr", pc, "Float", ax, "Float", ay, "Float", av, "Float", av)
+        DllCall("gdiplus\GdipSetClipPath", "Ptr", g, "Ptr", pc, "Int", 0)
+        DllCall("gdiplus\GdipDrawImageRectI", "Ptr", g, "Ptr", ab, "Int", ax, "Int", ay, "Int", av, "Int", av)
+        DllCall("gdiplus\GdipResetClip", "Ptr", g), DllCall("gdiplus\GdipDeletePath", "Ptr", pc)
+        DllCall("gdiplus\GdipDisposeImage", "Ptr", ab), DllCall("DeleteObject", "Ptr", hb)
+    }
+    ; the name, @username and badge
+    tx := ax + av + 14 * s
+    GpText(g, AuthState.name, "Inter Bold", 19 * s, Pal.text, tx, bh - 6 * s, W - tx - 8 * s, 24 * s)
+    GpText(g, AuthState.user != "" ? "@" AuthState.user : "", "Inter", 12.5 * s, Pal.dim, tx, bh + 16 * s, W - tx - 8 * s, 18 * s)
+    badge := IsPlus() ? "✦ FISCHXR Plus" (AuthState.access = "grant" ? " (given by the team)" : "") : "FISCHXR member"
+    GpText(g, badge, "Inter SemiBold", 11.5 * s, IsPlus() ? "FF4FD8" : Pal.dim, tx, bh + 32 * s, W - tx - 8 * s, 16 * s)
+    return GpDone(bmp, g)
+}
+
+; The signed-in person's Discord banner, downloaded once and kept (a GDI+
+; image to dispose of), or 0 (no banner, or it can't be had).
+ProfileBannerImage() {
+    id := AuthState.id, hash := AuthState.banner
+    if (id = "" || hash = "" || AuthTest.noPrompt)
+        return 0
+    file := A_Temp "\fischxr_banner_" id "_" hash ".png"
+    if !FileExist(file) {
+        try {
+            buf := HttpGet("https://cdn.discordapp.com/banners/" id "/" hash ".png?size=600", &st, true, 5000)
+            if (st = 200 && IsObject(buf) && buf.Size > 100) {
+                f := FileOpen(file, "w"), f.RawWrite(buf), f.Close()
+            }
+        }
+    }
+    img := 0
+    if FileExist(file)
+        DllCall("gdiplus\GdipCreateBitmapFromFile", "WStr", file, "Ptr*", &img)
+    return img
+}
+
+; A theme change: the window fades out, is rebuilt in the new colours, and
+; fades back in (at once with Reduce motion, or if it isn't showing).
+ThemeSwap() {
+    if !(IsObject(MainGui) && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd)) || Cfg["ReduceMotion"]
+        return RebuildGui(IsObject(MainGui) && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd))
+    hw := MainGui.Hwnd
+    loop 5
+        WinSetTransparent(Round(255 * (1 - A_Index / 5)), hw), Sleep(14)
+    RebuildGui(true)
+    try WinSetTransparent(0, MainGui.Hwnd)
+    FadeWindow(MainGui.Hwnd, 170)
+}
+
+; The fishing panel's rod view (W x H pixels): the track, the bar with a soft
+; glow and the fish; for Pinion's Aria the notes falling onto the track, for
+; Noiseform the warning's colour and the zone it names, for Bellona's Waraxe
+; both reels. v: what the reel reported (HudView), or 0.
+RodViewHbm(W, H, l, r, f, live, v) {
+    if !Gdip.Start()
+        return 0
+    s := ToPhys(1000) / 1000
+    DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", W, "Int", H, "Int", 0, "Int", 0x26200A, "Ptr", 0, "Ptr*", &bmp := 0)
+    DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", bmp, "Ptr*", &g := 0)
+    DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", g, "Int", 4), DllCall("gdiplus\GdipSetTextRenderingHint", "Ptr", g, "Int", 5)
+    DllCall("gdiplus\GdipGraphicsClear", "Ptr", g, "UInt", 0xFF000000 | Integer("0x" Pal.strip))
+    A(hex, a) => (Max(0, Min(255, Round(a))) << 24) | Integer("0x" hex)
+    Track(y0, th, bl, br, fx) {
+        GpRoundFill(g, 0, y0, W, th, th / 2, A(Pal.field, 255))
+        x1 := Clamp(bl, 0, 1) * W, x2 := Clamp(br, 0, 1) * W
+        if (x2 - x1 < 4 * s)
+            x2 := Min(W, x1 + 4 * s)
+        if live
+            GpRoundFill(g, x1 - 3 * s, y0 - 3 * s, x2 - x1 + 6 * s, th + 6 * s, (th + 6 * s) / 2, A(Pal.accent, 45))    ; (glow)
+        GpRoundFill(g, x1, y0, x2 - x1, th, th / 2, A(live ? Pal.accent : Pal.faint, 255))
+        if (fx >= 0) {
+            fxp := Clamp(fx, 0, 1) * W
+            GpRoundFill(g, fxp - 1.5 * s, y0 - 5 * s, 3 * s, th + 8 * s, 1.5 * s, A(live ? Pal.text : Pal.faint, 255))
+            GpRoundFill(g, fxp - 3.5 * s, y0 - 10 * s, 7 * s, 7 * s, 3.5 * s, A(live ? Pal.text : Pal.faint, 255))
+        }
+    }
+    trackY := H - 16 * s, th := 11 * s
+    if (IsObject(v) && IsObject(v.dual) && v.dual.HasOwnProp("dL")) {
+        ; Bellona's Waraxe: both reels, one above the other
+        bw := Max(1, v.bandW), rows := [[v.dual.dL, H - 36 * s], [v.dual.dR, H - 14 * s]]
+        for rw in rows {
+            dd := rw[1]
+            Track(rw[2], 8 * s, dd.bar ? dd.bl / bw : 0, dd.bar ? dd.br / bw : 0, dd.fish ? dd.fx / bw : -1)
+        }
+    } else
+        Track(trackY, th, l, r, f)
+    if IsObject(v) {
+        ; Pinion's Aria: the notes falling toward the track
+        if (IsObject(v.notes) && v.noteW > 0) {
+            now := A_TickCount / 1000
+            for n in v.notes {
+                tl := n.t - now
+                if (tl < -0.05 || tl > 1.4)
+                    continue
+                nx := Clamp(n.x / v.noteW, 0, 1) * W, ny := (trackY - 12 * s) * (1 - tl / 1.4)
+                GpRoundFill(g, nx - 5 * s, ny - 4 * s, 10 * s, 8 * s, 3 * s, A(Pal.accentHi, 210 - 90 * tl / 1.4))
+            }
+        }
+        ; Noiseform: the warning's colour, and the zone it names
+        if (v.want != "") {
+            col := v.want = "green" ? "3FE0A0" : v.want = "gray" ? "C8C8C8" : "5A5A5A"
+            pulse := 0.6 + 0.4 * Sin(A_TickCount / 110)
+            GpRoundFill(g, W - 16 * s, 4 * s, 10 * s, 10 * s, 5 * s, A(col, 255 * pulse))
+            GpText(g, (v.want = "dark" ? "black" : v.want) " zone", "Inter SemiBold", 10.5 * s, col, W - 120 * s, 1 * s, 100 * s, 16 * s, 2)
+            if (v.zone >= 0)
+                GpRoundFill(g, Clamp(v.zone, 0, 1) * W - 9 * s, trackY - 2 * s, 18 * s, th + 4 * s, 4 * s, A(col, 170))
+        }
+    }
+    DllCall("gdiplus\GdipDeleteGraphics", "Ptr", g)
+    DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", bmp, "Ptr*", &hbm := 0, "UInt", 0xFF000000 | Integer("0x" Pal.strip))
+    DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
+    return hbm
+}
+
+; Cambria Math (every Windows has it): the font for "fancy" Unicode letters.
+MathFontFamily() {
+    static fam := -1
+    if (fam = -1) {
+        fam := 0
+        for nm in ["Cambria Math", "Segoe UI Symbol"]
+            if !fam
+                DllCall("gdiplus\GdipCreateFontFamilyFromName", "WStr", nm, "Ptr", 0, "Ptr*", &fam)
+    }
+    return fam
+}
+; The same text in plain letters (Unicode compatibility form: 𝒥 → J).
+PlainLetters(str) {
+    n := DllCall("NormalizeString", "Int", 5, "WStr", str, "Int", -1, "Ptr", 0, "Int", 0)
+    if (n <= 0)
+        return str
+    buf := Buffer(n * 2 + 8, 0)
+    n := DllCall("NormalizeString", "Int", 5, "WStr", str, "Int", -1, "Ptr", buf, "Int", n + 4)
+    return n > 0 ? StrGet(buf) : str
 }
 
 
@@ -4342,7 +4764,7 @@ SetChoiceValue(key, value, *) {
     if (SubStr(key, 1, 4) = "Plus")
         PlusChanged(key)
     if (key = "Theme") {
-        SetTimer(RebuildGui, -1)
+        SetTimer(ThemeSwap, -1)
     } else if (key = "ControlStyle") {
         RodsChanged()
     }
@@ -4600,6 +5022,7 @@ WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
 }
 
 Press(h, e) {
+    try RoundBtns.PressFx(h)                     ; (a rounded button presses in)
     switch e.kind {
         case "btn", "dlg":
             if e.fn
@@ -5204,12 +5627,12 @@ class Dialog {
         SetFontFor(g, "norm s" FZ(10) " c" Pal.ink, "body")
         ok := g.Add("Text", Format("x{} y{} w{} h{} Center 0x200 Background{}", ZS(w - 24 - 120), y, bw, bh2, Pal.accent), okText)
         Clickables[ok.Hwnd] := {kind: "dlg", fn: ObjBindMethod(Dialog, "Ok"), obj: ok}
-        SetTimer(RoundCtl.Bind(ok), -1)
+        RoundBtns.Add(ok, Pal.accent, Pal.ink, Pal.bar), RoundBtns.Start()
         if (cancelText != "") {
             SetFontFor(g, "norm s" FZ(10) " c" Pal.text, "body")
             cn := g.Add("Text", Format("x{} y{} w{} h{} Center 0x200 Background{}", ZS(w - 24 - 252), y, bw, bh2, Pal.field), cancelText)
             Clickables[cn.Hwnd] := {kind: "dlg", fn: ObjBindMethod(Dialog, "Close"), obj: cn}
-            SetTimer(RoundCtl.Bind(cn), -1)
+            RoundBtns.Add(cn, Pal.field, Pal.text, Pal.bar)
         }
         g.OnEvent("Escape", (*) => Dialog.Close())
         g.Show(Format("Hide w{} h{}", ZS(w), y + bh2 + ZS(22)))
@@ -8255,6 +8678,53 @@ IsBgCol(b, p, x) {
     return Abs(((2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3) - p.bgL[x + 1]) < 12
 }
 
+; Bellona's Waraxe: two reels side by side, each the size of the usual one,
+; centred 0.563 of a reel's width either side of it (side -1 left, 1 right).
+; a: the usual reel's area (x1, y1, w, h); cr: the window, to stay inside.
+DualArea(a, cr, side) {
+    cx := a.x1 + a.w / 2 + side * 0.563 * a.w
+    x1 := Round(cx - a.w / 2)
+    x1 := Max(cr.x, Min(x1, cr.x + cr.w - a.w))
+    return {x1: x1, y1: a.y1, w: a.w, h: a.h}
+}
+
+; Bellona's Waraxe: one reading from the two reels. One mouse drives both
+; bars the same way, so they move together; a bar that stays put while the
+; other moves is frozen (its reel done or stalled) and is left out. The fish
+; to follow: between the two if both fit under the bar, else the one nearer
+; the bar (keeping one rather than losing both); or the only one there is.
+DualMerge(dL, dR, st, now := -1) {
+    now := now >= 0 ? now : A_TickCount
+    if dL.bar {
+        c := (dL.bl + dL.br) / 2
+        if (Abs(c - st.lc) > 3)
+            st.lc := c, st.lt := now
+    }
+    if dR.bar {
+        c := (dR.bl + dR.br) / 2
+        if (Abs(c - st.rc) > 3)
+            st.rc := c, st.rt := now
+    }
+    st.dL := dL, st.dR := dR                              ; (for the fishing panel)
+    movL := now - st.lt < 450, movR := now - st.rt < 450
+    useL := dL.bar && !(!movL && movR), useR := dR.bar && !(!movR && movL)
+    if !(useL || useR)
+        return dL.bar ? dL : dR
+    if (useL && useR)
+        d := {bar: true, bl: (dL.bl + dR.bl) / 2, br: (dL.br + dR.br) / 2, fish: false, fx: -1
+            , cover: Max(dL.cover, dR.cover), n: dL.n, fishCol: false}
+    else
+        d := useL ? dL : dR
+    fl := useL && dL.fish ? dL.fx : -1, fr := useR && dR.fish ? dR.fx : -1
+    bc := (d.bl + d.br) / 2, bw := d.br - d.bl
+    if (fl >= 0 && fr >= 0)
+        fx := Abs(fl - fr) <= 0.7 * bw ? (fl + fr) / 2 : (Abs(fl - bc) <= Abs(fr - bc) ? fl : fr)
+    else
+        fx := fl >= 0 ? fl : fr
+    d.fish := fx >= 0, d.fx := fx
+    return d
+}
+
 
 ;==============================================================================
 ; Extras: logo graphics, auto totems, Sovereign recharge, Discord alerts and
@@ -9333,6 +9803,25 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.4.2
+- Reeling gets FISCHXR's full attention again: theme effects, the glow and other decoration pause while a reel is on screen (5.4.0's extra drawing was slowing special rods down).
+- Plus theme effects are a background now: they show between the buttons and text, never over them.
+
+5.4.1
+- Display names in fancy Unicode letters show properly on your profile.
+- The Plus theme's scene no longer covers your Discord banner on your profile.
+
+5.4.0
+- Your profile shows your Discord banner across the top, with your picture over its edge, and your numbers count up when it opens.
+- Plus goals: stop fishing after so many catches or so many minutes (on the Fishing page), with a Discord alert when a goal is reached. The stop alert now carries your session summary with catches per hour.
+- A taller fishing panel that shows your rod: Pinion's Aria's notes falling, Noiseform's warning colour and the zone it wants, both of Bellona's Waraxe reels.
+- Plus themes now have their own scenes: a blossoming branch for Sakura, a crescent moon for Midnight, vines for Emerald, a setting sun for Sunset, snowy peaks for Aurora and light through water for Abyss. Themes and their effects now reach the fishing panel too.
+- Smoother everywhere: buttons fade on hover and press in when clicked, and changing theme cross-fades.
+
+5.3.1
+- Bellona's Waraxe: both of its reels are read. FISCHXR watches the two tracks side by side, keeps both fish under the bar when they fit, follows the nearer one when they don't, and carries on with the one that's left when the other finishes.
+- Rounded buttons everywhere: every button, choice, key, stepper and totem chip is drawn rounded.
+
 5.3.0
 - Start and stop fishing from Discord with /start and /stop (your macro answers within about 45 seconds).
 - Ruinous Oath is followed all the way: its bar turns from white to pink to red as it shrinks, and FISCHXR now knows every shade of it.
@@ -9928,8 +10417,9 @@ AuthGate() {
 SignedIn(me, tok, exp, fresh) {
     AuthState.mode := "discord", AuthState.id := me.id, AuthState.name := me.name
     AuthState.user := me.HasOwnProp("user") ? me.user : Cfg["AuthUser"], AuthState.avatar := me.HasOwnProp("avatar") ? me.avatar : Cfg["AuthAvatar"]
-    Cfg["AuthUser"] := AuthState.user, Cfg["AuthAvatar"] := AuthState.avatar
-    try Save("AuthUser"), Save("AuthAvatar")
+    AuthState.banner := me.HasOwnProp("banner") ? me.banner : Cfg["AuthBanner"], AuthState.accentCol := me.HasOwnProp("accentCol") ? me.accentCol : Cfg["AuthAccentCol"]
+    Cfg["AuthUser"] := AuthState.user, Cfg["AuthAvatar"] := AuthState.avatar, Cfg["AuthBanner"] := AuthState.banner, Cfg["AuthAccentCol"] := AuthState.accentCol
+    try Save("AuthUser"), Save("AuthAvatar"), Save("AuthBanner"), Save("AuthAccentCol")
     Cfg["AuthMode"] := "discord", Cfg["AuthTok"] := Protect(tok), Cfg["AuthExp"] := exp
     Cfg["AuthName"] := me.name, Cfg["AuthId"] := me.id
     SaveAuth()
@@ -9992,7 +10482,8 @@ DiscordMe(tok, &status := 0) {
         js := req.ResponseText, id := JsonField(js, "id"), nm := JsonField(js, "global_name"), un := JsonField(js, "username")
         if (nm = "")
             nm := un
-        return id != "" ? {id: id, name: nm, user: un, avatar: JsonField(js, "avatar")} : 0
+        acc := RegExMatch(js, '"accent_color"\s*:\s*(\d+)', &am) ? Format("{:06X}", Integer(am[1])) : ""
+        return id != "" ? {id: id, name: nm, user: un, avatar: JsonField(js, "avatar"), banner: JsonField(js, "banner"), accentCol: acc} : 0
     }
     return 0
 }
@@ -11305,12 +11796,12 @@ PlusChanged(key) {
         case "PlusGlow", "PlusGlowColor", "PlusGlowStyle", "PlusGlowRun":
             PlusGlow.Refresh()
         case "PlusTheme":
-            SetTimer(RebuildGui, -1)
+            SetTimer(ThemeSwap, -1)
         case "PlusEffects":
             PlusFx.Refresh()
         case "PlusAccent":
             if (Cfg["PlusAccent"] = "" || RegExMatch(Cfg["PlusAccent"], "i)^#?[0-9A-F]{6}$"))
-                SetTimer(RebuildGui, -1)
+                SetTimer(ThemeSwap, -1)
     }
 }
 
@@ -11531,8 +12022,8 @@ class PlusGlow {
 
     ; Running light: a new frame, 25 times a second while it shows.
     static Frame() {
-        if !(this.g && this.dc && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd))
-            return
+        if (ReelActive || !(this.g && this.dc && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd)))
+            return                                            ; (while reeling: holds still)
         this.Streaks()
         this.Blend()
     }
@@ -11553,7 +12044,7 @@ class PlusGlow {
 
     ; "Pulsing": the whole glow breathes (only its strength changes).
     static Pulse() {
-        if !(this.g && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd))
+        if (ReelActive || !(this.g && DllCall("IsWindowVisible", "Ptr", this.g.Hwnd)))
             return
         this.alpha := Round(120 + 135 * (0.5 + 0.5 * Sin(A_TickCount / 1000 * 3.5)))
         if !this.Running()                          ; (the running light shows it on its next frame)
@@ -11623,8 +12114,26 @@ SetDwmBorder(hwnd, rgb) {
 ;------------------------------------------------------------------------------
 class PlusFx {
     static g := 0, owner := 0, ticker := 0, dc := 0, hbm := 0, old := 0, gp := 0, gr := 0, W := 0, H := 0
-    static parts := [], kind := "", last := 0, frames := 0, shoot := 0, sparks := []
+    static parts := [], kind := "", last := 0, frames := 0, shoot := 0, sparks := [], artKey := "", artBmp := 0, rects := [], clipAt := 0
 
+    static Host() => MainGui                               ; (the window the effects sit over)
+    ; every control showing, as rectangles in the layer (backdrops as big as
+    ; half the window are left out: they're the background)
+    static ControlRects(host, wx, wy, ww, wh) {
+        out := [], rc := Buffer(16)
+        for hwnd, ctl in host {
+            try {
+                if !DllCall("IsWindowVisible", "Ptr", hwnd)
+                    continue
+                DllCall("GetWindowRect", "Ptr", hwnd, "Ptr", rc)
+                l := NumGet(rc, 0, "Int") - wx, t := NumGet(rc, 4, "Int") - wy, r := NumGet(rc, 8, "Int") - wx, b := NumGet(rc, 12, "Int") - wy
+                if (r <= l || b <= t || (r - l) * (b - t) > 0.5 * ww * wh)
+                    continue
+                out.Push([l, t, r - l, b - t])
+            }
+        }
+        return out
+    }
     static Want() => IsPlus() && Cfg["PlusEffects"] && !Cfg["ReduceMotion"] && PlusThemeSet().Has(Cfg["PlusTheme"])
         && IsSet(MainGui) && IsObject(MainGui) && UiReady && !Login.g
         && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd) && !DllCall("IsIconic", "Ptr", MainGui.Hwnd)
@@ -11636,12 +12145,31 @@ class PlusFx {
         SetTimer(this.ticker, on ? 50 : 0)
         if !on
             this.Hide()
+        if (this = PlusFx)
+            PlusFxHud.Refresh()
     }
     static Hide() {
         if this.g
             try this.g.Hide()
     }
+    ; the theme's scene (drawn once for this size, then reused every frame)
+    static DrawArt() {
+        key := this.kind "|" this.W "x" this.H
+        if (key != this.artKey) {
+            if this.artBmp
+                DllCall("gdiplus\GdipDisposeImage", "Ptr", this.artBmp)
+            DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", this.W, "Int", this.H, "Int", 0, "Int", 0xE200B, "Ptr", 0, "Ptr*", &ab := 0)
+            DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", ab, "Ptr*", &ag := 0)
+            DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", ag, "Int", 4)
+            ThemeArt(this.kind, ag, this.W, A_ScreenDPI / 96 * (this = PlusFx ? 1 : 0.6))
+            DllCall("gdiplus\GdipDeleteGraphics", "Ptr", ag)
+            this.artBmp := ab, this.artKey := key
+        }
+        DllCall("gdiplus\GdipDrawImageRectI", "Ptr", this.gr, "Ptr", this.artBmp, "Int", 0, "Int", 0, "Int", this.W, "Int", this.H)
+    }
     static Stop() {
+        if (this = PlusFx)
+            try PlusFxHud.Stop()
         if this.ticker
             SetTimer(this.ticker, 0)
         if this.g
@@ -11650,22 +12178,33 @@ class PlusFx {
     }
 
     static Frame() {
+        if ReelActive                                         ; (while reeling: holds still, the reel gets the thread)
+            return
         if !this.Want()
             return this.Hide()
         ; the layer: owned by the window (so it sits just above it), its size
-        if (!this.g || this.owner != MainGui.Hwnd) {
+        host := this.Host()
+        if (!this.g || this.owner != host.Hwnd) {
             if this.g
                 try this.g.Destroy()
-            this.g := Gui("-Caption +ToolWindow +E0x80020 +E0x08000000 -DPIScale +Owner" MainGui.Hwnd, "FISCHXR effects")
-            this.g.Show("NA x0 y0 w1 h1"), this.owner := MainGui.Hwnd, this.W := 0
+            this.g := Gui("-Caption +ToolWindow +E0x80020 +E0x08000000 -DPIScale +Owner" host.Hwnd, "FISCHXR effects")
+            this.g.Show("NA x0 y0 w1 h1"), this.owner := host.Hwnd, this.W := 0
         }
-        WinGetPos(&x, &y, &w, &h, "ahk_id " MainGui.Hwnd)
+        WinGetPos(&x, &y, &w, &h, "ahk_id " host.Hwnd)
         if (w != this.W || h != this.H)
             this.Surface(w, h), this.kind := ""
         if (this.kind != Cfg["PlusTheme"])
             this.Seed(Cfg["PlusTheme"])
         now := A_TickCount, dt := Min(0.1, (now - (this.last ? this.last : now)) / 1000), this.last := now
         DllCall("gdiplus\GdipGraphicsClear", "Ptr", this.gr, "UInt", 0)
+        ; (a background: nothing is drawn over the interface, only between it)
+        DllCall("gdiplus\GdipResetClip", "Ptr", this.gr)
+        if (A_TickCount - this.clipAt > 250)
+            this.rects := this.ControlRects(host, x, y, w, h), this.clipAt := A_TickCount
+        for rc in this.rects
+            DllCall("gdiplus\GdipSetClipRectI", "Ptr", this.gr, "Int", rc[1], "Int", rc[2], "Int", rc[3], "Int", rc[4], "Int", 4)
+        if !(this = PlusFx && CurTab = "Profile")           ; (the profile's banner shows as it is)
+            this.DrawArt()
         switch this.kind {
             case "Sakura":   this.Petals(dt)
             case "Midnight": this.Stars(dt, now)
@@ -11713,6 +12252,8 @@ class PlusFx {
         this.kind := kind, this.parts := [], this.shoot := 0
         s := A_ScreenDPI / 96, W := this.W, H := this.H
         n := Map("Sakura", 16, "Midnight", 30, "Emerald", 12, "Sunset", 20, "Aurora", 3, "Abyss", 18)[kind]
+        ; (a smaller window, fewer: the panel gets about a third)
+        n := Max(kind = "Aurora" ? 2 : 4, Round(n * Min(1, 1.6 * W * H / (ToPhys(540) * ToPhys(416)))))
         this.sparks := []                                           ; (Aurora's twinkles)
         if (kind = "Aurora")
             loop 12
@@ -11873,6 +12414,102 @@ class PlusFx {
             this.Dot(p.x, p.y, p.size * 3, this.Col(p.c, 30 * life * fl))
             this.Dot(p.x, p.y, p.size, this.Col(p.c, (60 + 170 * life) * fl))
         }
+    }
+}
+
+; The same effects over the fishing panel, with their own particles.
+class PlusFxHud extends PlusFx {
+    static g := 0, owner := 0, ticker := 0, dc := 0, hbm := 0, old := 0, gp := 0, gr := 0, W := 0, H := 0
+    static parts := [], kind := "", last := 0, frames := 0, shoot := 0, sparks := [], artKey := "", artBmp := 0, rects := [], clipAt := 0
+    static Host() => Hud.g
+    static Want() => IsPlus() && Cfg["PlusEffects"] && !Cfg["ReduceMotion"] && PlusThemeSet().Has(Cfg["PlusTheme"])
+        && Hud.Visible()
+}
+
+; Each Plus theme's scene, drawn faintly into the top-right corner (the
+; quietest part of the window): Sakura a blossoming branch, Midnight a
+; crescent moon, Emerald hanging vines, Sunset a setting sun with clouds and
+; birds, Aurora snowy peaks, Abyss light falling through water.
+; g: GDI+ graphics W wide; k: the scale (design units to pixels).
+ThemeArt(kind, g, W, k) {
+    X(dx) => W + dx * k                                     ; (from the right edge, leftwards)
+    Y(dy) => (dy + 30) * k                                  ; (below the title bar: clear of minimise and close)
+    C(hex, a) => (Max(0, Min(255, Round(a))) << 24) | Integer("0x" hex)
+    Circle(cx, cy, r, argb) {
+        DllCall("gdiplus\GdipCreateSolidFill", "UInt", argb, "Ptr*", &br := 0)
+        DllCall("gdiplus\GdipFillEllipse", "Ptr", g, "Ptr", br, "Float", cx - r, "Float", cy - r, "Float", r * 2, "Float", r * 2)
+        DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+    }
+    Curve(pts, width, argb) {
+        buf := Buffer(pts.Length * 8)
+        for i, p in pts
+            NumPut("Float", X(p[1]), "Float", Y(p[2]), buf, (i - 1) * 8)
+        DllCall("gdiplus\GdipCreatePen1", "UInt", argb, "Float", width * k, "Int", 2, "Ptr*", &pen := 0)
+        DllCall("gdiplus\GdipSetPenStartCap", "Ptr", pen, "Int", 2), DllCall("gdiplus\GdipSetPenEndCap", "Ptr", pen, "Int", 2)
+        DllCall("gdiplus\GdipDrawCurve", "Ptr", g, "Ptr", pen, "Ptr", buf, "Int", pts.Length)
+        DllCall("gdiplus\GdipDeletePen", "Ptr", pen)
+    }
+    Poly(pts, argb) {
+        buf := Buffer(pts.Length * 8)
+        for i, p in pts
+            NumPut("Float", X(p[1]), "Float", Y(p[2]), buf, (i - 1) * 8)
+        DllCall("gdiplus\GdipCreateSolidFill", "UInt", argb, "Ptr*", &br := 0)
+        DllCall("gdiplus\GdipFillPolygon", "Ptr", g, "Ptr", br, "Ptr", buf, "Int", pts.Length, "Int", 0)
+        DllCall("gdiplus\GdipDeleteBrush", "Ptr", br)
+    }
+    switch kind {
+        case "Sakura":
+            Curve([[10, -8], [-40, 20], [-95, 30], [-150, 52], [-205, 48]], 6, C("4A2A2E", 170))
+            Curve([[-95, 30], [-118, 68], [-132, 94]], 3.2, C("4A2A2E", 160))
+            Curve([[-150, 52], [-176, 22], [-192, 8]], 2.8, C("4A2A2E", 160))
+            Curve([[-40, 20], [-58, 58], [-62, 80]], 2.6, C("4A2A2E", 150))
+            for b in [[-205, 48, 9], [-192, 8, 8], [-132, 94, 8], [-62, 80, 7], [-165, 45, 7], [-110, 36, 7], [-75, 24, 6], [-122, 70, 6]
+                , [-182, 30, 6], [-30, 14, 6], [-215, 60, 6], [-145, 98, 5], [-50, 64, 5], [-198, 22, 5], [-88, 40, 5]] {
+                Circle(X(b[1]), Y(b[2]), b[3] * 1.9 * k, C("FFB7D5", 26))         ; (a soft bloom)
+                Circle(X(b[1]), Y(b[2]), b[3] * k, C(["FFB7D5", "FFC9E0", "FF9CC8"][Mod(Abs(Round(b[1] * 7 + b[2])), 3) + 1], 150))
+                Circle(X(b[1]), Y(b[2]), 1.8 * k, C("FFF2F8", 170))
+            }
+        case "Midnight":
+            for hr in [[70, 10], [48, 16], [34, 26]]
+                Circle(X(-70), Y(50), hr[1] * k, C("C8D8FF", hr[2]))
+            Circle(X(-70), Y(50), 24 * k, C("EEF3FF", 170))
+            DllCall("gdiplus\GdipSetCompositingMode", "Ptr", g, "Int", 1)              ; (the crescent: cut out)
+            Circle(X(-60), Y(43), 22 * k, 0)
+            DllCall("gdiplus\GdipSetCompositingMode", "Ptr", g, "Int", 0)
+            for st in [[-130, 20], [-160, 60], [-110, 80], [-190, 34], [-30, 90]]
+                Circle(X(st[1]), Y(st[2]), 1.6 * k, C("FFFFFF", 180))
+        case "Emerald":
+            for vn in [[-26, 90], [-62, 120], [-98, 70], [-136, 105], [-176, 60], [-212, 85]] {
+                x0 := vn[1], ln := vn[2]
+                Curve([[x0, -4], [x0 - 6, ln * 0.35], [x0 + 5, ln * 0.7], [x0 - 2, ln]], 2, C("2E7A4C", 170))
+                loop Round(ln / 16) {
+                    ly := A_Index * 16, lx := x0 + (Mod(A_Index, 2) ? -7 : 6)
+                    Circle(X(lx), Y(ly), 4.5 * k, C(Mod(A_Index, 3) ? "5FD08A" : "7BF2BA", 150))
+                }
+            }
+        case "Sunset":
+            Circle(X(-64), Y(46), 62 * k, C("FFB060", 26))
+            Circle(X(-64), Y(46), 44 * k, C("FF9A4A", 60))
+            Circle(X(-64), Y(46), 30 * k, C("FFB86A", 150))
+            for cl in [[-150, 70, 90], [-40, 82, 110], [-120, 94, 70], [-200, 58, 60]]
+                GpRoundFill(g, X(cl[1]), Y(cl[2]), cl[3] * k, 7 * k, 3.5 * k, C("FFD0A0", 70))
+            for bd in [[-150, 24], [-128, 16], [-172, 36]]
+                Curve([[bd[1] - 7, bd[2] - 3], [bd[1], bd[2] + 2], [bd[1] + 7, bd[2] - 3]], 1.6, C("2A1409", 190))
+        case "Aurora":
+            Poly([[4, 78], [-30, 34], [-52, 52], [-92, 16], [-130, 58], [-162, 30], [-205, 72], [-240, 78]], C("123845", 170))
+            Poly([[-30, 34], [-38, 44], [-22, 44]], C("E6FBFF", 160))
+            Poly([[-92, 16], [-104, 30], [-80, 30]], C("E6FBFF", 170))
+            Poly([[-162, 30], [-172, 42], [-152, 42]], C("E6FBFF", 150))
+        case "Abyss":
+            for ry in [[-30, 26, 70, 22], [-95, 20, 80, 18], [-170, 24, 60, 14]]
+                for ln in [170, 115, 60]                            ; (fading as they go down)
+                    Poly([[ry[1], -30], [ry[1] - ry[2], -30], [ry[1] - ry[2] - 40 * ln / 170, ln], [ry[1] + 30 * ln / 170, ln]], C("8CC4FF", ry[4] / 2.2))
+            ; a small jellyfish
+            DllCall("gdiplus\GdipCreateSolidFill", "UInt", C("A0D8FF", 110), "Ptr*", &jb := 0)
+            DllCall("gdiplus\GdipFillPie", "Ptr", g, "Ptr", jb, "Float", X(-78), "Float", Y(50), "Float", 26 * k, "Float", 22 * k, "Float", 180, "Float", 180)
+            DllCall("gdiplus\GdipDeleteBrush", "Ptr", jb)
+            for tn in [-72, -66, -60, -54]
+                Curve([[tn, 60], [tn - 3, 72], [tn + 2, 84], [tn - 1, 94]], 1.2, C("A0D8FF", 90))
     }
 }
 
@@ -12305,7 +12942,7 @@ class Blocked {
 ; all-time fishing, when your Discord account was made; Log out and Back.
 ;==============================================================================
 class Profile {
-    static g := 0, from := "Home", ticker := 0, sessText := "", lifeText := "", roleText := "", roleIds := "", rolesAt := 0, rolesOk := false
+    static g := 0, from := "Home", ticker := 0, nameText := "", sessText := "", lifeText := "", roleText := "", roleIds := "", rolesAt := 0, rolesOk := false
     static Show() {
         if IsGuest()
             return Login.Show()
@@ -12348,13 +12985,10 @@ FischxrRoles() => [["1552797683012472943", "Macro Developer", "A970FF"], ["15527
     , ["1553164118792601690", "Macro Tester", "3FE0F0"], ["1552813077072715786", "Content Creator", "FF4FD8"]]
 
 ProfileRefresh(withPicture) {
-    if !(UiReady && UI.HasOwnProp("pfName"))
+    if !(UiReady && UI.HasOwnProp("pfHead"))
         return
     try {
-        UI.pfName.Text := AuthState.name
-        UI.pfUser.Text := AuthState.user != "" ? "@" AuthState.user : ""
-        UI.pfBadge.Text := IsPlus() ? "✦ FISCHXR Plus" (AuthState.access = "grant" ? " (given by the team)" : "") : "FISCHXR member"
-        UI.pfBadge.SetFont("c" (IsPlus() ? "FF4FD8" : Pal.dim))
+        Profile.nameText := AuthState.name
         cw := (LEFT_W - 12) // 2
         secs := Stats.start ? (A_TickCount - Stats.start) // 1000 : 0
         live := (Stats.start && !Stats.banked) ? secs : 0
@@ -12366,12 +13000,18 @@ ProfileRefresh(withPicture) {
             st .= l "|"
         for l in life
             lt .= l "|"
-        if (st != Profile.sessText || withPicture)
-            Profile.sessText := st, SetPicHbm(UI.pfSess, CardHbm(cw, 108, "THIS SESSION", sess))
-        if (lt != Profile.lifeText || withPicture)
-            Profile.lifeText := lt, SetPicHbm(UI.pfLife, CardHbm(cw, 108, "ALL TIME", life))
         if withPicture {
-            SetPicHbm(UI.pfAvatar, ProfileAvatar(ToPhys(80), IsPlus() ? "FF4FD8" : Pal.accent, Pal.content))
+            ; (opening: the numbers count up to where they are)
+            Profile.sessText := st, Profile.lifeText := lt
+            ProfileCountUp(cw, [Stats.casts, Stats.reels], [Cfg["LifeCasts"], Cfg["LifeReels"]], sess, life)
+        } else {
+            if (st != Profile.sessText)
+                Profile.sessText := st, SetPicHbm(UI.pfSess, CardHbm(cw, 100, "THIS SESSION", sess))
+            if (lt != Profile.lifeText)
+                Profile.lifeText := lt, SetPicHbm(UI.pfLife, CardHbm(cw, 100, "ALL TIME", life))
+        }
+        if withPicture {
+            SetPicHbm(UI.pfHead, ProfileHeaderHbm(LEFT_W, 108))
             chips := [], names := ""
             if Profile.Roles() {
                 for r in FischxrRoles()
@@ -12442,9 +13082,10 @@ ProfileAvatar(size, ring, bgc := "") {
             DllCall("gdiplus\GdipCreateFont", "Ptr", fam, "Float", size * 0.42, "Int", 1, "Int", 2, "Ptr*", &font := 0)
             DllCall("gdiplus\GdipCreateStringFormat", "Int", 0, "UShort", 0, "Ptr*", &fmt := 0)
             DllCall("gdiplus\GdipSetStringFormatAlign", "Ptr", fmt, "Int", 1), DllCall("gdiplus\GdipSetStringFormatLineAlign", "Ptr", fmt, "Int", 1)
-            DllCall("gdiplus\GdipCreateSolidFill", "UInt", 0xFFFFFFFF, "Ptr*", &tb := 0)
+            rv := Integer("0x" ring), rl := (2 * ((rv >> 16) & 255) + 5 * ((rv >> 8) & 255) + (rv & 255)) >> 3
+            DllCall("gdiplus\GdipCreateSolidFill", "UInt", rl > 150 ? 0xFF000000 | Integer("0x" Pal.ink) : 0xFFFFFFFF, "Ptr*", &tb := 0)   ; (dark on a light ring colour)
             rc := Buffer(16), NumPut("Float", 0, "Float", 0, "Float", size, "Float", size, rc)
-            DllCall("gdiplus\GdipDrawString", "Ptr", gr, "WStr", StrUpper(SubStr(AuthState.name, 1, 1)), "Int", -1, "Ptr", font, "Ptr", rc, "Ptr", fmt, "Ptr", tb)
+            DllCall("gdiplus\GdipDrawString", "Ptr", gr, "WStr", StrUpper(SubStr(PlainLetters(AuthState.name), 1, 1)), "Int", -1, "Ptr", font, "Ptr", rc, "Ptr", fmt, "Ptr", tb)
             DllCall("gdiplus\GdipDeleteBrush", "Ptr", tb), DllCall("gdiplus\GdipDeleteStringFormat", "Ptr", fmt), DllCall("gdiplus\GdipDeleteFont", "Ptr", font)
         }
     }
@@ -12609,6 +13250,29 @@ class VLock {
         if g
             try g.Destroy()
         SignArt.Release()
+    }
+}
+
+; The profile's numbers counting up (8 steps, ~0.3 s, easing out).
+ProfileCountUp(cw, sNow, lNow, sess, life) {
+    static step := 0, timer := 0, args := 0
+    args := [cw, sNow, lNow, sess, life], step := 0
+    if !timer
+        timer := Tick
+    SetTimer(timer, 40)
+    Tick()
+    Tick() {
+        step++
+        k := 1 - (1 - Min(1, step / 8)) ** 3
+        try {
+            ss := args[4].Clone(), ll := args[5].Clone()
+            ss[1] := Round(args[2][1] * k) " casts", ss[2] := Round(args[2][2] * k) " reels"
+            ll[1] := Round(args[3][1] * k) " casts", ll[2] := Round(args[3][2] * k) " reels"
+            SetPicHbm(UI.pfSess, CardHbm(args[1], 100, "THIS SESSION", ss))
+            SetPicHbm(UI.pfLife, CardHbm(args[1], 100, "ALL TIME", ll))
+        }
+        if (step >= 8)
+            SetTimer(timer, 0)
     }
 }
 
