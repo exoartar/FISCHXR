@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.4.2"
+APP_VER := "5.4.3"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -1063,7 +1063,7 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
     ; a first reading far from it has to be confirmed before it's believed)
     c := -1, v := 0, tC := 0, f := b.w / 2, fv := 0, tF := 0, aim := "fish", lastAim := "fish", jumpTo := -1
     lastBl := -2, lastBr := -2, lastFx := -2, tFrame := 0, vmaxSeen := 0
-    widths := [], bw := 0, memKey := "", segT := [], segX := []
+    widths := [], bw := 0, rejW := [], memKey := "", segT := [], segX := []
     t0 := A_TickCount, lastUI := t0, lastDash := 0, frame := 0, ep := -1, good := 0, barSeen := t0, frzC := -1, frzT := t0
     ; Splitbranch Twig's reel waits for a click ("Click & Hold Anywhere!")
     ; after a fish is chosen: it gets one at once, and a bar that doesn't move
@@ -1139,9 +1139,24 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
         LiveD := d, LiveP := p, LiveEp := ep, LiveT := now     ; for the Live tab
         if (now - rateT >= 1000)
             LiveRate := frame - rateF, rateT := now, rateF := frame
-        ; A block of bar colour at the wrong width is scenery, not the bar.
-        if (d.bar && bw && Abs(d.br - d.bl + 1 - bw) > Max(6, bw * 0.35))
-            d.bar := false
+        ; A block of bar colour at the wrong width is scenery, not the bar...
+        ; unless it keeps coming back the same size: then the bar itself
+        ; changed (Verdant Oath's grows in and then shrinks, Ruinous Oath's
+        ; shrinks), and six agreeing readings in a row make it the width.
+        if (d.bar && bw && Abs(d.br - d.bl + 1 - bw) > Max(6, bw * 0.35)) {
+            rejW.Push(d.br - d.bl + 1)
+            if (rejW.Length > 6)
+                rejW.RemoveAt(1)
+            m := MedianOf(rejW), same := rejW.Length >= 6
+            for x in rejW
+                same := same && Abs(x - m) <= 0.15 * m
+            if same {
+                LogVision(Format("The bar changed size ({} to {} px): following it", Round(bw), Round(m)))
+                widths := rejW.Clone(), bw := m, rejW := []
+            } else
+                d.bar := false
+        } else if d.bar
+            rejW := []
         ; The reel is up while its track outline shows (once learned), or
         ; while the row fits this look's colours. Strong colour evidence
         ; counts while the outline has never matched in this reel: a window
@@ -9803,6 +9818,9 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.4.3
+- Verdant Oath: FISCHXR follows its bar as it grows in and shrinks during the reel. Before, it took the bar's size from the first moments of the reel and then ignored most of the real bar as "the wrong size", steering blind for much of each reel.
+
 5.4.2
 - Reeling gets FISCHXR's full attention again: theme effects, the glow and other decoration pause while a reel is on screen (5.4.0's extra drawing was slowing special rods down).
 - Plus theme effects are a background now: they show between the buttons and text, never over them.

@@ -1,7 +1,7 @@
 {
-  "version": "5.4.2",
+  "version": "5.4.3",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "0f5e9420d9c26025b9ae2d30077230f1a53ef2faf0318466f25d91d7d0e1e956",
-  "notes": "Reeling gets the macro's full attention again (decoration pauses during reels), and Plus effects stay behind the interface.",
+  "sha256": "5a2376200cfa51f9036c84a17da965502c69dfaaa60b5b23a39214f73c5dea8e",
+  "notes": "Verdant Oath: FISCHXR follows its bar as it grows and shrinks, instead of steering blind for much of the reel.",
   "api": "https://fischxr-api.exoartar.workers.dev/"
 }
