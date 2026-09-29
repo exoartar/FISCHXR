@@ -1,7 +1,7 @@
 {
-  "version": "5.4.3",
+  "version": "5.5.0",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "5a2376200cfa51f9036c84a17da965502c69dfaaa60b5b23a39214f73c5dea8e",
-  "notes": "Verdant Oath: FISCHXR follows its bar as it grows and shrinks, instead of steering blind for much of the reel.",
+  "sha256": "0fe4dc6694da84dff070d4a9a5dfb5ce361da356f845b7ff42371ca37ccb8db8",
+  "notes": "FISCHXR now also comes as a single FISCHXR.exe from reelworks.pages.dev.",
   "api": "https://fischxr-api.exoartar.workers.dev/"
 }
