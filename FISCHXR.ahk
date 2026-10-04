@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.7.3"
+APP_VER := "5.7.4"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 DOWNLOAD_PAGE := "https://reelworks.pages.dev/download.html"   ; (the packaged FISCHXR.exe updates from here)
 IniPath := A_ScriptDir "\FISCHXR.ini"
@@ -196,6 +196,10 @@ RodLib := [
     {id: "ruinous",     name: "Ruinous Oath",           fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36", "F8E8E0", "F8D0C8", "F8B8B0", "F8A098", "F89088", "F8786C", "F86050", "F8503C", "F84028", "F82C14", "F81800", "F81000"], bt: 6},
     {id: "luminescent", name: "Luminescent Oath",       fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36", "E0E0F4", "C8C8F0", "B4B8F4", "A0A4F4", "8C94F8", "6870F8", "5058F8", "3440F8", "2030F8", "0818F8", "0008F8"], bt: 6},
     {id: "poseidon",    name: "Poseidon's Lance",       fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36", "C0E0F0", "B0D0F0", "A0C8F0", "80C0F0", "60B0F0", "50A8F0", "30A0F0", "4090D0", "2090E0"], bt: 6},
+    ; (Sanguine Spire: a dark blood-red bar, darkest in the middle (red by design: its fish is on it);
+    ; the fish is a pill with light brownish-red edges and a dark red-brown centre. Its black outline
+    ; and the darkest edge shades aren't listed: at night the track is just as dark.)
+    {id: "sanguine",    name: "Sanguine Spire",         fish: ["674A43", "6A4941", "734A44", "48130E", "44140E", "421510"], ft: 8,  bar: ["280200", "300200", "380300", "400300", "480400", "500500", "580600", "600600"], bt: 6, pt: 10, pf: 12, redOK: true},
     {id: "verdant",     name: "Verdant Oath",           kind: "wood", fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D", "6C0C00", "6C0C0C", "600C00", "741410"], bt: 5, greenBar: true},
     {id: "halibut",     name: "Halibut Harpoon",        fish: ["0D0B0B"], ft: 5,  bar: ["5D52A8"], bt: 5},
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
@@ -240,7 +244,7 @@ AuthTest := IsSet(AuthTest) ? AuthTest : {noPrompt: false, noBrowser: false, me:
 if AuthTest.noPrompt
     AuthState.mode := AuthTest.mode != "" ? AuthTest.mode : "discord"
 SessionLooks := Map(), CurRodName := "", CurRodLib := "", RodReadBusy := false, RodReadAt := 0, RodReadLast := "", OcrHook := 0
-CatchSeq := 0, CatchBusyAt := 0, CatchLast := 0, LightTriedAt := 0, LightFailed := 0, LightLast := 0, LightSteadyMs := 120                    ; (the catch log: the read in progress, and the last catch)
+CatchSeq := 0, CatchBusyAt := 0, CatchLast := 0, LightTriedAt := 0, LightFailed := 0, LightLast := 0, LightSteadyMs := 120, LookPending := 0, LookConfirm := true                    ; (the catch log: the read in progress, and the last catch)
 LivePreview := false, PreviewBand := 0, PreviewGeo := 0, EditCtls := Map(), ColX := 0, RowBase := 0
 Totems := [], SovReels := 0, SovLast := ""
 HookQueue := [], HookReq := 0, HookBusy := 0, HookLast := "", HookAllowLocal := false, HookItem := 0
@@ -6489,7 +6493,7 @@ NewProfile(name, track, bar, fish, barW := 0) {
 ; missing something.
 FillProfile(p) {
     for k, v in Map("id", "", "name", "Rod", "track", [], "bar", [], "fish", [], "barW", 0
-        , "tolT", 24, "tolB", 24, "tolF", 22, "gain", 0, "edgeT", "", "edgeB", "", "sovereign", 0
+        , "tolT", 24, "tolB", 24, "tolF", 22, "gain", 0, "redOK", false, "edgeT", "", "edgeB", "", "sovereign", 0
         , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0, "trkT", 0, "trkB", 0, "minSwitch", 0)
         if !p.HasOwnProp(k)
             p.%k% := v
@@ -6583,7 +6587,7 @@ VisionScan(b, p, predFish := -1) {
     Cand(cen, len, nF) {
         inside := bar && cen > bl && cen < br
         sc := 4 * nF + (inside ? 2 : 1) * len
-        if (inside && (redBar = -1 ? (redBar := std ? IsTintedBar(b, bl, br) : IsRedBar(b, bl, br)) : redBar))
+        if (inside && (redBar = -1 ? (redBar := std ? IsTintedBar(b, bl, br) : (!p.redOK && IsRedBar(b, bl, br))) : redBar))
             sc := -1e12
         if (predFish >= 0)
             sc -= Abs(cen - predFish) / Max(1, w * 0.08)
@@ -6856,7 +6860,7 @@ BordersTrack(cols, w, bl, br, tl, tr) {
 ; Builds a profile from a frame where the bar is known to span [bl, br]:
 ; bar colours from inside, track colours from outside, and fish colours
 ; from narrow runs that fit neither.
-ProfileFromFrame(cols, w, bl, br, name := "") {
+ProfileFromFrame(cols, w, bl, br, name := "", knownBar := "", fishAt := -1) {
     inside := [], outside := []
     Loop w {
         x := A_Index - 1, c := NumGet(cols, x * 4, "UInt")
@@ -6869,6 +6873,9 @@ ProfileFromFrame(cols, w, bl, br, name := "") {
     trackPal := VClusters(outside, 18, 0.10, 5)
     if (!barPal.Length || !trackPal.Length)
         return 0
+    ; (the rod's own bar colours aren't the fish either: its outline or arrows
+    ; are too narrow to make the bar's clusters, and would be learned as fish)
+    knownPal := IsObject(knownBar) ? knownBar : []
     ; Odd columns fit neither palette: the fish, if it is narrow. Inside the
     ; bar, anything that isn't bar colour counts, even if it matches the
     ; track: a dark fish on a dark track still stands out against the bar
@@ -6887,6 +6894,12 @@ ProfileFromFrame(cols, w, bl, br, name := "") {
             if isOdd
                 for t in barPal
                     if (ColDist(c, t) <= 26) {
+                        isOdd := false
+                        break
+                    }
+            if isOdd
+                for t in knownPal
+                    if (ColDist(c, t) <= 12) {
                         isOdd := false
                         break
                     }
@@ -6940,6 +6953,21 @@ ProfileFromFrame(cols, w, bl, br, name := "") {
                 keep.Push(c)
         }
         odd := keep
+    }
+    ; (a rod whose fish was found by its own colour: extra fish colours only
+    ; from right where it is, never from scenery elsewhere on the strip)
+    if (fishAt >= 0) {
+        oddNear := []
+        for r in runs
+            if (Abs((r.x0 + r.x1) / 2 - fishAt) <= 24)
+                for c in r.cols {
+                    art := false
+                    for dc in decor
+                        art := art || ColDist(c, dc) <= 30
+                    if !art
+                        oddNear.Push(c)
+                }
+        odd := oddNear
     }
     fishPal := odd.Length ? VClusters(odd, 16, 0.2, 3) : []
     ; Fish colours close to the track are kept only when the fish has none of
@@ -7100,7 +7128,7 @@ ProbeLib(b, lib) {
         ResetLut(p)
         return {prof: p, d: d}
     }
-    probe := FillProfile({name: lib.name, bar: bars, fish: fishes, tolB: lib.bt + 6, tolF: lib.ft + 6, greenBar: green, probe: true})
+    probe := FillProfile({name: lib.name, bar: bars, fish: fishes, tolB: lib.bt + 6, tolF: lib.ft + 6, greenBar: green, probe: true, redOK: lib.HasOwnProp("redOK") && lib.redOK})
     ResetLut(probe)
     d := VisionScan(b, probe)
     ; the rod's own fish colour, and mostly its own bar colours
@@ -7109,7 +7137,7 @@ ProbeLib(b, lib) {
     bw := (d.br - d.bl + 1) / w
     if (bw < 0.03 || bw > 0.85)
         return 0
-    p := ProfileFromFrame(b.cols, w, d.bl, d.br, lib.name)
+    p := ProfileFromFrame(b.cols, w, d.bl, d.br, lib.name, bars, d.fishCol ? d.fx : -1)
     if !p
         return 0
     ; the style's own colours plus the exact shades on screen (kept in memory only)
@@ -7117,7 +7145,11 @@ ProbeLib(b, lib) {
         p.bar.InsertAt(1, h)
     for f in fishes
         p.fish.Push(f)
-    p.lib := lib.id, p.greenBar := green
+    p.lib := lib.id, p.greenBar := green, p.redOK := lib.HasOwnProp("redOK") && lib.redOK
+    if lib.HasOwnProp("pt")                           ; (a rod whose bar needs a tighter match, like Sanguine Spire's dark red)
+        p.tolB := lib.pt
+    if lib.HasOwnProp("pf")                           ; (and its fish: a fixed colour drawn on top, matched closely)
+        p.tolF := lib.pf
     p.id := "rod:" (CurRodName != "" ? CurRodName : lib.id)
     p.name := CurRodName != "" ? CurRodName : lib.name
     ResetLut(p)
@@ -7136,6 +7168,34 @@ MatchLibrary(b) {
 ; if that isn't known, every built-in style is tried and the best fit wins.
 ; The chosen style is kept for this session only (never saved), so the next
 ; reel is recognized at once.
+; A reel fades in: a look learned from a half-drawn frame (the track still
+; showing the scenery, a fish read on the scenery) would be kept for the whole
+; reel. So a newly learned colour look is only used once the next screen grab
+; agrees: the look still covers the strip, with the bar in the same place.
+; While the reel is still fading in they disagree, and it's learned again.
+ConfirmLook(b, best, id) {
+    global LookPending, LookConfirm
+    if (!LookConfirm || best.prof.kind != "")
+        return true
+    pend := LookPending
+    age := IsObject(pend) ? A_TickCount - pend.at : 99999
+    if (IsObject(pend) && pend.id = id && age < 10)
+        return false                                  ; (too soon to be another grab: wait, keeping the one learned)
+    LookPending := {id: id, prof: best.prof, d: best.d, at: A_TickCount}
+    if (!IsObject(pend) || pend.id != id || age > 600)
+        return false
+    dp := VisionScan(b, pend.prof)
+    bw := best.d.br - best.d.bl
+    ok := dp.bar && dp.cover >= 0.85 && Abs(dp.bl - best.d.bl) <= 60 && Abs((dp.br - dp.bl) - bw) <= 0.15 * bw + 10
+    if (best.prof.HasOwnProp("gain") && best.prof.gain)
+        ApplyGain(b, best.prof.gain)
+    else
+        UnGain(b)
+    if ok
+        LookPending := 0
+    return ok
+}
+
 ; The same bright block that couldn't be read a moment ago (a glint, a dock
 ; edge) isn't tried again for 2 seconds; a reel's bar appears and moves.
 LightWorthTrying(b) {
@@ -7158,7 +7218,7 @@ MatchPrecoded(b, geo, all := false) {
     else
         for lib in RodLib
             ids.Push(lib.id)
-    best := 0, bestScore := 0, bestId := ""
+    best := 0, bestScore := 0, bestId := "", bestNew := false
     for id in ids {
         UnGain(b)                                      ; (each try starts from the colours as they are)
         ; (Noiseform's look is taken fresh every reel: the bar's width changes
@@ -7169,7 +7229,7 @@ MatchPrecoded(b, geo, all := false) {
             if (d.bar && d.cover >= 0.75 && (p.kind != "" || EdgesPresent(b, geo, p) != 0)) {
                 sc := d.cover + (d.fish ? 0.2 : 0)
                 if (sc > bestScore)
-                    best := {prof: p, d: d}, bestScore := sc, bestId := id
+                    best := {prof: p, d: d}, bestScore := sc, bestId := id, bestNew := false
                 continue
             }
         }
@@ -7180,9 +7240,12 @@ MatchPrecoded(b, geo, all := false) {
         if (lib && (r := ProbeLib(b, lib))) {
             sc := r.d.cover + (r.d.fish ? 0.2 : 0)
             if (sc > bestScore)
-                best := r, bestScore := sc, bestId := id
+                best := r, bestScore := sc, bestId := id, bestNew := true
         }
     }
+    ; a look learned just now waits for the next screen grab to agree with it
+    if (best && bestNew && !ConfirmLook(b, best, bestId))
+        return 0
     if best
         SessionLooks[bestId] := best.prof
     else if (A_TickCount - LightTriedAt >= 150 && (gains := LightGain(b)) && LightWorthTrying(b)) {
@@ -7208,6 +7271,8 @@ MatchPrecoded(b, geo, all := false) {
                 }
             }
         }
+        if (best && best.prof.kind = "" && !ConfirmLook(b, (best.prof.gain := bestGain, best), bestId))
+            return (UnGain(b), 0)
         if best {
             best.prof.gain := bestGain
             ApplyGain(b, bestGain)
@@ -10308,6 +10373,10 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.7.4
+- New rod: Sanguine Spire. Its dark blood-red bar and fang-topped fish are read in daylight and at night.
+- Every rod: a reel that fades in no longer leaves FISCHXR with the wrong colours for the whole reel (a newly learned look waits one more screen grab to agree), and scenery elsewhere on the reel is no longer learned as the fish's colour.
+
 5.7.3
 - FISCHXR.exe now updates itself, like the script version: "Update now" downloads the new FISCHXR.exe, checks its fingerprint, swaps itself for it and restarts. If its folder can't be written to, the download page opens instead, as before.
 
