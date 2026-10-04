@@ -1,9 +1,9 @@
 {
-  "version": "6.0.0",
+  "version": "1.1",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
   "sha256": "3623f4085296cf472208451c26ccc42bbc44bdfacbdb100f6f46e370a05b3e90",
   "exe_url": "https://reelworks.pages.dev/download/FISCHXR.exe",
   "exe_sha256": "e8ac58c9115168fa2a5851e2506532a81300d442034830075f800d2cbc18b82f",
   "api": "https://fischxr-api.exoartar.workers.dev/",
-  "notes": "This installs FISCHXR 1.1, the first public release. Version numbers start again at 1.1 from here."
+  "notes": "FISCHXR 1.1, the first public release."
 }

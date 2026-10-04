@@ -36,8 +36,8 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.7.6"
-UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
+APP_VER := "1.1"
+UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/release.json"   ; (1.1 on: the versions started again; update.json is the bridge for older copies)
 DOWNLOAD_PAGE := "https://reelworks.pages.dev/download.html"   ; (the packaged FISCHXR.exe updates from here)
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
@@ -10430,297 +10430,24 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
-5.7.6
-- New rod: Nate's Blade. Its orange reel, growing bar and the face that rides on the fish are read, from the moment the reel appears.
+1.1
+- Welcome to FISCHXR 1.1, the first public release. Versions start again from here.
+- Fishes for you: press F1 and FISCHXR casts, shakes and reels on its own, and keeps going between catches.
+- Reels with a physics model of each rod: it measures how your bar speeds up and slows down, then brakes so the fish lands in the middle of the bar instead of sliding past it.
+- 14 rods with their own reel mechanics are supported: Noiseform, Pinion's Aria, Verdant Oath, Ruinous Oath, Luminescent Oath, Poseidon's Lance, Sanguine Spire, Darkheart, Nate's Blade, Bellona's Waraxe (two reels at once), Apollo's Sunshot, Cinder Block Rod, Splitbranch Twig and Requiem. Standard rods just work.
+- Reads the reel in dark or tinted lighting (night, dark events, filters, HDR) by correcting the colours, and waits out reels that go dark on purpose.
+- Totems: add the ones you own and choose when each is used. FISCHXR uses them between catches.
+- Aquarium: set how often to feed it, how much food to use and how many to buy per visit. FISCHXR makes the trip between catches.
+- Sovereign: recharged with plain Enchant Relics every set number of reels. Mutated relics are never used.
+- Discord alerts: problems, disconnects, starts and stops, plus an hourly summary, sent to your channel.
+- Rejoins Roblox on its own if you're disconnected.
+- Catch log: every catch is read (the fish, its weight and its 1-in-N odds) and kept in Catches.csv next to FISCHXR.
+- Rare catches (1 in 100 or rarer) are shared with the FISCHXR Discord when you're signed in, and /catch-alerts can DM you your own.
+- Sign in with Discord for weekly and all-time leaderboards, a public profile on reelworks.pages.dev, and control from Discord: /status, /start, /stop and /settings.
+- FISCHXR Plus, for server boosters: fishing goals that stop the macro and ping you, the catch rate on the fishing panel, app themes, and profile themes, effects and layouts on the website.
+- Updates itself: both the script and FISCHXR.exe download the new version, check its fingerprint and restart. Your settings are kept.
+- Reel settings for those who want them: control style, latency, braking and look-ahead. The defaults work well for most people.
 
-5.7.5
-- New rod: Darkheart. Its near-black bar, grey-edged fish and the moments its reel goes dark are handled: FISCHXR waits out the darkness instead of ending the reel.
-
-5.7.4
-- New rod: Sanguine Spire. Its dark blood-red bar and fang-topped fish are read in daylight and at night.
-- Every rod: a reel that fades in no longer leaves FISCHXR with the wrong colours for the whole reel (a newly learned look waits one more screen grab to agree), and scenery elsewhere on the reel is no longer learned as the fish's colour.
-
-5.7.3
-- FISCHXR.exe now updates itself, like the script version: "Update now" downloads the new FISCHXR.exe, checks its fingerprint, swaps itself for it and restarts. If its folder can't be written to, the download page opens instead, as before.
-
-5.7.2
-- Dark or tinted lighting: when something dims or colours the whole reel (a dark event, a night filter, HDR or a graphics filter), FISCHXR could see nothing at all. It now notices the reel looks dimmed or tinted, corrects its colours, and reads it as normal. Your event log says when it does.
-
-5.7.1
-- Ordinary rods no longer mistake bright blue, lavender or pink scenery for the bar (it could show the whole track as bar). The changing colours of Ruinous Oath, Luminescent Oath and Poseidon's Lance now only count when that rod is equipped.
-
-5.7.0
-- Catch log: after each reel FISCHXR reads the catch message (the fish, its weight and its 1-in-N odds) and keeps Catches.csv next to the macro. Turn it off with Read each catch on the Reel page.
-- Rare catches (1 in 100 or rarer) go to the FISCHXR Discord when you're signed in: the rarest are posted in the server, and /catch-alerts sends you a DM when your macro catches something rare. If you've hidden yourself from the leaderboards, your catches aren't posted publicly.
-
-5.6.0
-- Leaderboards: when you're signed in with Discord, your reels count toward the weekly and all-time FISCHXR leaderboards on reelworks.pages.dev and in the Discord bot (/leaderboard). Don't want to be on them? Use /leaderboard-visibility in Discord, or the switch on your profile page on the website.
-- While fishing, FISCHXR tells the FISCHXR service how it's doing every 10 minutes, so the website's "fishing right now" and the leaderboards stay current.
-
-5.5.0
-- FISCHXR comes as a single FISCHXR.exe from reelworks.pages.dev, with nothing else to install. When a new version is out, the .exe takes you to the download page.
-
-5.4.9
-- Poseidon's Lance: its bar is read whole, blue sweet spot included (before, FISCHXR saw only one white end of it and steered the wrong part of the bar), and the fish is kept near the middle, on the blue.
-
-5.4.8
-- Bellona's Waraxe: each reel on its own mouse button, as the game has it: the left reel on the left button, the right reel on the right button, steered at the same time; the right reel is kept on after the left one ends.
-- Luminescent Oath: its bar is followed from white through lavender to deep blue.
-- Verdant Oath: the bar is found when a wooden block hangs past either end of the reel, and when it touches an end its green zone decides where it is.
-- Cinder Block Rod: its bar fills the reel and never moves, and FISCHXR no longer takes that for scenery and ends the reel.
-
-5.4.7
-- Apollo's Sunshot: its bar is followed when it turns nearly black (the fish outside it). Before, FISCHXR could go blind for seconds while the fish got away.
-
-5.4.6
-- Bellona's Waraxe: both reels are worked. FISCHXR finds the two tracks where they really are on your screen (any resolution), takes turns between the two fish when they can't both be kept, and reads both reels in one capture.
-- Reel records now show how fast each reel was read (frames a second, and time spent capturing and reading), to tune slower PCs.
-
-5.4.5
-- Apollo's Sunshot: its bar is followed in its dark look too (the fish outside it). Before, FISCHXR lost the bar then and could end the reel early.
-- Starting to fish closes any open dialog, so an update prompt can't sit over the game while you fish; it's asked again when you stop.
-
-5.4.4
-- Settings has an "Open snapshots folder" button: your saved snapshots and reel records, one click away.
-
-5.4.3
-- Verdant Oath: FISCHXR follows its bar as it grows in and shrinks during the reel. Before, it took the bar's size from the first moments of the reel and then ignored most of the real bar as "the wrong size", steering blind for much of each reel.
-
-5.4.2
-- Reeling gets FISCHXR's full attention again: theme effects, the glow and other decoration pause while a reel is on screen (5.4.0's extra drawing was slowing special rods down).
-- Plus theme effects are a background now: they show between the buttons and text, never over them.
-
-5.4.1
-- Display names in fancy Unicode letters show properly on your profile.
-- The Plus theme's scene no longer covers your Discord banner on your profile.
-
-5.4.0
-- Your profile shows your Discord banner across the top, with your picture over its edge, and your numbers count up when it opens.
-- Plus goals: stop fishing after so many catches or so many minutes (on the Fishing page), with a Discord alert when a goal is reached. The stop alert now carries your session summary with catches per hour.
-- A taller fishing panel that shows your rod: Pinion's Aria's notes falling, Noiseform's warning colour and the zone it wants, both of Bellona's Waraxe reels.
-- Plus themes now have their own scenes: a blossoming branch for Sakura, a crescent moon for Midnight, vines for Emerald, a setting sun for Sunset, snowy peaks for Aurora and light through water for Abyss. Themes and their effects now reach the fishing panel too.
-- Smoother everywhere: buttons fade on hover and press in when clicked, and changing theme cross-fades.
-
-5.3.1
-- Bellona's Waraxe: both of its reels are read. FISCHXR watches the two tracks side by side, keeps both fish under the bar when they fit, follows the nearer one when they don't, and carries on with the one that's left when the other finishes.
-- Rounded buttons everywhere: every button, choice, key, stepper and totem chip is drawn rounded.
-
-5.3.0
-- Start and stop fishing from Discord with /start and /stop (your macro answers within about 45 seconds).
-- Ruinous Oath is followed all the way: its bar turns from white to pink to red as it shrinks, and FISCHXR now knows every shade of it.
-- Two new Plus themes: Aurora (drifting northern lights) and Abyss (rising bubbles).
-- Plus effects are richer: Sakura petals have depth and a soft glow, Emerald fireflies leave trails, Sunset embers flicker and throw the odd big spark.
-- Updates always come from the official FISCHXR GitHub; the update link can no longer be changed.
-
-5.2.9
-- Noiseform: the bar is measured fresh on every reel. Its width changes from fish to fish, and reusing an earlier reel's width could make FISCHXR read part of the green emblem as the bar (and lose the fish).
-- Noiseform: a bar reading that doesn't move while the mouse is held or let go is ignored (the bar always moves then), and a "fish" that's really part of the reel's fixed picture is ignored too.
-
-5.2.8
-- Noiseform: the bar is found when it's pushed against either end of the reel (its outline merges with the reel's border there). Before, FISCHXR lost it there, so when a zone warning came it couldn't take the bar to the zone.
-
-5.2.7
-- Noiseform: FISCHXR knows when the reel is over again. 5.2.6 could keep "seeing" a bar in the scenery after the catch; now once the reel's track and emblem are gone, nothing there counts as a bar.
-
-5.2.6
-- Noiseform: FISCHXR now follows the bar when it goes dark (the fish outside it). It learns what the reel looks like behind the bar, the green emblem included, and finds the dark bar as what stands out from that, instead of mistaking the emblem for the bar.
-
-5.2.5
-- Noiseform: the bar's own outline is no longer mistaken for the fish. With a rod's bright effects beside it, the macro could chase its own bar to the end of the track.
-
-5.2.4
-- The profile's picture, cards and buttons, and the reel gauges, are sized right on screens with display scaling (125%, 150%...): no more small cards or blurry buttons.
-
-5.2.3
-- Your profile shows your Discord picture again, and your FISCHXR roles (Macro Developer, Macro Creator, Macro Tester, Content Creator).
-- The profile's cards and buttons are properly rounded now.
-- The reel gauges no longer leave stray marks behind as the bar and fish move.
-
-5.2.2
-- Your rod is read again every time you start fishing, so a rod you swapped while stopped is picked up straight away. (A rod typed on the Rods page still takes priority.)
-
-5.2.1
-- Fast fish are followed instead of lost. When the fish slipped out of the bar, FISCHXR could mistake a stretch of empty track for it and steer the wrong way; now only something fish-sized counts, and it finds the real fish even over the dark track.
-- A reel isn't given up on while the bar is still there, even when it's tinted and covering the track's edge.
-- Fixed FISCHXR stopping with "Something went wrong" after two bad reels in a row.
-
-5.2.0
-- FISCHXR knows every reel starts with the bar and the fish in the middle. Something that looks like a reel but isn't centred is ignored, and early wrong readings of the fish are no longer believed straight away.
-- The reel style can no longer drift to another rod's reel (like a standard rod being read as Noiseform). A style is only switched for a rod whose name isn't known, and only after it fits two reels in a row.
-
-5.1.9
-- The standard reel keeps track of the bar when it turns red (the fish has slipped out of it), so FISCHXR keeps steering back to the fish instead of losing it.
-
-5.1.8
-- Catches aren't called early any more. On Noiseform, Pinion's Aria, Requiem, Verdant Oath and Apollo's Sunshot, the fish keeps the reel going while the bar is hard to see (at night, in a zone), and FISCHXR takes one more look before casting, so it never casts over a reel that's still going.
-- Your rod is always read from your rod key's slot, even when another slot is highlighted or the hotbar is a different size on your screen.
-
-5.1.7
-- Plus themes come alive: Sakura petals drift down, Midnight stars twinkle (watch for shooting stars), Emerald fireflies glow and Sunset embers rise. Switch it off with Theme effects on the Plus tab.
-- The boost check no longer depends on the FISCHXR invite link.
-
-5.1.6
-- The FISCHXR team can now lock a version of FISCHXR to a Discord role (for test builds and early access). If your version is locked and you don't have the role, FISCHXR tells you so, and opens by itself as soon as you get it.
-
-5.1.5
-- Rounded buttons all through FISCHXR.
-- Your profile is now a full page: click your name in the sidebar, and Back takes you where you were.
-- Pop-up windows and the fishing panel stay where they open.
-- After a reconnect, FISCHXR clicks through Fisch's loading screen before it starts fishing again.
-
-5.1.4
-- Your profile! Click your name in the sidebar to see your Discord picture, name and username, your Plus status, this session's and all-time fishing, and when your Discord account was made. Log out lives there now.
-- The top-left corner shows the new FISCHXR logo.
-- A blacklisted account now sees a proper blacklist screen saying why, instead of FISCHXR. If the blacklist is lifted, FISCHXR opens signed in on its own.
-
-5.1.3
-- Totems are safer. If a totem's hotbar key opens a menu instead (say, the Equipment Bag after you've rearranged your hotbar), FISCHXR closes it without clicking, goes back to your rod and tells you to check that key. Before, its click could equip a different rod.
-- FISCHXR re-reads your rod after every job and every 15 casts, so a swapped rod is picked up straight away.
-
-5.1.2
-- Your rod is read correctly on any screen size. FISCHXR now finds the hotbar slot you're holding by its highlight, instead of guessing where slots sit, which could be a whole slot off on 1080p and other screens.
-- Small rod names are enlarged more before they're read, so they're read more reliably.
-
-5.1.1
-- Plus: the glowing border now has a running light, two bright streaks that race around the outside. It's on by default, and you can switch it off on the Plus tab (or with /settings set plus-glow-run off).
-- Plus: your catches per hour always show on the fishing panel.
-
-5.1.0
-- Change your macro's settings right from Discord! Use /settings set in the FISCHXR server and your macro picks it up within a couple of minutes. /settings show and /status tell you how it's doing.
-- The FISCHXR team can now give or take Plus, and keep an account from signing in.
-
-5.0.0
-- Introducing FISCHXR Plus, a thank-you for everyone boosting the FISCHXR Discord server! Sign in with Discord and Plus switches on by itself.
-- Plus gets its own tab: a glowing border around the macro (pink by default, with more colours and a pulsing glow), four Plus themes, and your own accent colour.
-- Plus fishing extras: quick recast, your catch rate on the fishing panel, and a choice of corner for the panel.
-- Plus members see "FISCHXR - PLUS" across the top.
-- Already signed in? Sign in once more so FISCHXR can see you're boosting.
-
-4.9.6
-- Splitbranch Twig catches are way more reliable. After you pick a fish, its reel waits for a click before it starts ("Click & Hold Anywhere!"). FISCHXR now gives it that click right away and won't give up on the reel while it warms up.
-- The Splitbranch choice timer is followed all the way down, even as it turns yellow, orange and red.
-
-4.9.5
-- Splitbranch Twig: FISCHXR now waits for the two-fish choice to finish before it starts reeling, and tries the left fish, then the right, if a click doesn't land.
-- After a choice, FISCHXR reels with the mouse clear of the fish you picked, so the clicks actually reach the reel.
-
-4.9.4
-- FISCHXR now checks which rod you're holding before the first cast, so it knows which reel to expect right from the start.
-- Noiseform got a big upgrade: the fish is spotted much more reliably, especially at night and when it's outside the bar.
-- New rod: Splitbranch Twig, "Choose one!" pick included.
-
-4.9.3
-- FISCHXR now fixes itself when fishing goes wrong. Two bad reels in a row? It relearns the reel from scratch. A reel it doesn't recognize? It tries every style until one fits. Stuck for two minutes? It resets and re-equips your rod.
-- A job that can't finish (like the aquarium) no longer stops you fishing. It simply tries again in 10 minutes.
-- The small fishing panel is solid again instead of see-through.
-- The new FISCHXR logo is now on your taskbar and tray.
-
-4.9.2
-- The "Sign in to use" panel no longer hides under the sidebar.
-
-4.9.1
-- The sign-in buttons work properly now.
-- Totems are free for everyone, guests included.
-- You can type your rod's name on the Rods page, and typos are fine: "inions air" becomes Pinion's Aria.
-- Rod names read from your hotbar get the same auto-correct.
-
-4.9.0
-- A brand-new sign-in screen: the new logo, clean new type, and a glowing Discord button.
-
-4.8.1
-- The sign-in screen now comes first. Pick Discord or guest and you're in.
-
-4.8.0
-- Sign in with Discord! Signing in unlocks everything and brings you into the FISCHXR Discord server.
-- Guests can still fish. Discord alerts, auto-reconnect, the aquarium, totems and Sovereign need a sign-in.
-- Your sign-in is remembered securely, and you can sign out any time.
-
-4.7.0
-- Everything feels smoother: sliding switches, pages that glide in, buttons that fade on hover, and a status dot that breathes while you fish.
-- Soft shadows give the window more depth.
-- Prefer less movement? Turn on Reduce motion.
-
-4.6.1
-- The sidebar is snappy again.
-
-4.6.0
-- A fresh look: the sidebar is now a slim strip of icons that opens when you hover over it.
-- New rod: Apollo's Sunshot.
-- Bars that grow or shrink mid-reel are followed properly instead of ending the reel early.
-- What's new now scrolls.
-
-4.5.3
-- When the fish hugs either end, the bar now holds it there instead of bouncing off.
-- Verdant Oath keeps track of the bar at both ends and through the red flash.
-
-4.5.2
-- Verdant Oath now aims the fish right at the middle of the green zone.
-
-4.5.1
-- Requiem: FISCHXR goes easy on the inputs, so the line doesn't snap.
-
-4.5.0
-- New rod: Requiem.
-
-4.4.9
-- Pinion's Aria without a skin: the bright red bar is recognized.
-- Steadier steering for every rod: no more lurching after a bad reading, and the bar stays calm while the fish is safely inside.
-
-4.4.8
-- Pinion's Aria without a skin now works.
-- Pinion's Aria's bar is followed as it grows and shrinks with the notes.
-
-4.4.7
-- Pinion's Aria: notes are spotted about a second before they land, so the bar is ready for them.
-
-4.4.6
-- Pinion's Aria: the bar keeps the fish and still heads over to catch notes in time.
-
-4.4.5
-- Noiseform and Pinion's Aria reels no longer end early, and dock planks aren't mistaken for a reel.
-
-4.4.4
-- Pinion's Aria: the red bar is recognized, and the 水 symbol is no longer mistaken for the fish.
-
-4.4.3
-- Noiseform works at night.
-
-4.4.2
-- After a Noiseform zone or a Pinion's Aria note, the bar heads straight back to the fish.
-
-4.4.1
-- Noiseform zones no longer throw off where the bar is.
-
-4.4.0
-- Noiseform zones: FISCHXR reads the warning in the middle of the screen and moves the bar to the right zone before the beam hits.
-
-4.3.1
-- Noiseform is found wherever your reel area sits. If a reel isn't recognized, the Detection log explains why.
-
-4.3.0
-- Pinion's Aria: the bar catches falling notes while keeping the fish.
-- FISCHXR reads the rod in your hotbar to pick the right reel style.
-
-4.2.3
-- Check for updates now tells you what it found, and hover help is back on every page.
-
-4.2.2
-- Updates now come straight from the FISCHXR GitHub page. FISCHXR checks when it opens and asks before installing.
-
-4.2.1
-- Noiseform keeps working when its bar goes dark.
-
-4.2.0
-- We're FISCHXR now! Your settings carry over.
-- FISCHXR reads the rod in your hotbar and uses its reel style automatically.
-- Verdant Oath aims the fish at the green zone.
-
-4.1.0
-- A fresh new look, with tabs down the side and a smaller window.
-- A small panel in the corner shows what's happening while you fish, with a Stop button.
-- Simpler pages, with fine-tuning tucked away under Advanced.
-- Sovereign recharge types into the inventory search the way a person would.
-- FISCHXR can now update itself.
 )"
 }
 
