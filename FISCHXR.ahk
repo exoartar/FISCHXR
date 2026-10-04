@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.7.4"
+APP_VER := "5.7.5"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 DOWNLOAD_PAGE := "https://reelworks.pages.dev/download.html"   ; (the packaged FISCHXR.exe updates from here)
 IniPath := A_ScriptDir "\FISCHXR.ini"
@@ -200,6 +200,9 @@ RodLib := [
     ; the fish is a pill with light brownish-red edges and a dark red-brown centre. Its black outline
     ; and the darkest edge shades aren't listed: at night the track is just as dark.)
     {id: "sanguine",    name: "Sanguine Spire",         fish: ["674A43", "6A4941", "734A44", "48130E", "44140E", "421510"], ft: 8,  bar: ["280200", "300200", "380300", "400300", "480400", "500500", "580600", "600600"], bt: 6, pt: 10, pf: 12, redOK: true},
+    ; (Darkheart: a near-black bar with white arrows on a grey track; the fish is a black pill with
+    ; thin grey edges, so the edges are what it's found by. Its reel goes dark now and then.)
+    {id: "darkheart",   name: "Darkheart",              fish: ["4C4C4C", "575757", "616161"], ft: 4,  bar: ["050505", "080808", "0B0B0B", "0E0E0E", "101010", "B6B6B6", "D4D6D6", "E8E9EC"], bt: 0, pt: 5, pf: 8, fw: 6, lostMs: 2500},
     {id: "verdant",     name: "Verdant Oath",           kind: "wood", fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D", "6C0C00", "6C0C0C", "600C00", "741410"], bt: 5, greenBar: true},
     {id: "halibut",     name: "Halibut Harpoon",        fish: ["0D0B0B"], ft: 5,  bar: ["5D52A8"], bt: 5},
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
@@ -1260,8 +1263,10 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
                 LogVision("Reel outline no longer matched, learning it again")
             }
         }
-        if (now - lastUI > 450 || now - t0 > 120000) {
-            endWhy := now - t0 > 120000 ? "two-minute limit" : "the reel looked gone for 450 ms"
+        ; (a rod whose reel goes dark on purpose, like Darkheart's, may vanish for longer)
+        lostMax := p.HasOwnProp("lostMs") && p.lostMs ? p.lostMs : 450
+        if (now - lastUI > lostMax || now - t0 > 120000) {
+            endWhy := now - t0 > 120000 ? "two-minute limit" : "the reel looked gone for " lostMax " ms"
             break
         }
         ; The moment the reel looks gone, let go and press nothing: in Fisch a
@@ -6493,7 +6498,7 @@ NewProfile(name, track, bar, fish, barW := 0) {
 ; missing something.
 FillProfile(p) {
     for k, v in Map("id", "", "name", "Rod", "track", [], "bar", [], "fish", [], "barW", 0
-        , "tolT", 24, "tolB", 24, "tolF", 22, "gain", 0, "redOK", false, "edgeT", "", "edgeB", "", "sovereign", 0
+        , "tolT", 24, "tolB", 24, "tolF", 22, "gain", 0, "redOK", false, "fw", 0, "lostMs", 0, "edgeT", "", "edgeB", "", "sovereign", 0
         , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0, "trkT", 0, "trkB", 0, "minSwitch", 0)
         if !p.HasOwnProp(k)
             p.%k% := v
@@ -6584,7 +6589,29 @@ VisionScan(b, p, predFish := -1) {
     ; of track whose colours weren't learned isn't one) and don't touch either
     ; end of the band; a standard bar that isn't white has the fish outside it.
     maxU := Max(3, Round(w * 0.03)), std := p.lib = "standard"
+    ; (a rod whose fish is two thin edges, like Darkheart's pill: an edge right
+    ; next to bright white is the bar's arrow, and a real edge has its partner)
+    EdgePair(cen, len) {
+        x0 := Round(cen - len / 2), x1 := Round(cen + len / 2)
+        Loop 4 {
+            for xx in [x0 - A_Index, x1 + A_Index]
+                if (xx >= 0 && xx < w) {
+                    c := NumGet(cols, xx * 4, "UInt")
+                    if ((2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) // 8 > 150)
+                        return false
+                }
+        }
+        for dir in [1, -1]
+            Loop 17 {
+                xx := Round(cen) + dir * (9 + A_Index)
+                if (xx >= 0 && xx < w && NumGet(lab, xx, "UChar") = 3)
+                    return true
+            }
+        return false
+    }
     Cand(cen, len, nF) {
+        if (p.fw && nF > 0 && !EdgePair(cen, len))
+            return
         inside := bar && cen > bl && cen < br
         sc := 4 * nF + (inside ? 2 : 1) * len
         if (inside && (redBar = -1 ? (redBar := std ? IsTintedBar(b, bl, br) : (!p.redOK && IsRedBar(b, bl, br))) : redBar))
@@ -6607,7 +6634,12 @@ VisionScan(b, p, predFish := -1) {
             fishN += (NumGet(lab, x, "UChar") = 3)
         } else if (rs >= 0) {
             len := x - rs, edge := rs = 0 || x >= w
-            if (len <= maxF && (fishN > 0 || (len <= maxU && !edge)))
+            if (p.fw && fishN > 0 && len > p.fw)
+                rs := -1, len := 0                  ; (wider than this rod's fish can be: scenery in its colour)
+            if (!len)
+                {
+                }
+            else if (len <= maxF && (fishN > 0 || (len <= maxU && !edge)))
                 Cand(rs + (len - 1) / 2, len, fishN)
             else if (len > maxF || (fishN = 0 && len > maxU)) {
                 ; a long stretch of unknown colours: track whose colours weren't
@@ -6619,7 +6651,7 @@ VisionScan(b, p, predFish := -1) {
                             s2 := q
                     } else if (s2 >= 0) {
                         l2 := q - s2
-                        if (l2 <= maxF)
+                        if (l2 <= maxF && !(p.fw && l2 > p.fw))
                             Cand(s2 + (l2 - 1) / 2, l2, l2)
                         s2 := -1
                     }
@@ -7128,7 +7160,7 @@ ProbeLib(b, lib) {
         ResetLut(p)
         return {prof: p, d: d}
     }
-    probe := FillProfile({name: lib.name, bar: bars, fish: fishes, tolB: lib.bt + 6, tolF: lib.ft + 6, greenBar: green, probe: true, redOK: lib.HasOwnProp("redOK") && lib.redOK})
+    probe := FillProfile({name: lib.name, bar: bars, fish: fishes, tolB: lib.bt + 6, tolF: lib.ft + 6, greenBar: green, probe: true, fw: lib.HasOwnProp("fw") ? lib.fw : 0, redOK: lib.HasOwnProp("redOK") && lib.redOK})
     ResetLut(probe)
     d := VisionScan(b, probe)
     ; the rod's own fish colour, and mostly its own bar colours
@@ -7145,7 +7177,8 @@ ProbeLib(b, lib) {
         p.bar.InsertAt(1, h)
     for f in fishes
         p.fish.Push(f)
-    p.lib := lib.id, p.greenBar := green, p.redOK := lib.HasOwnProp("redOK") && lib.redOK
+    p.lib := lib.id, p.greenBar := green, p.redOK := lib.HasOwnProp("redOK") && lib.redOK, p.fw := lib.HasOwnProp("fw") ? lib.fw : 0
+    p.lostMs := lib.HasOwnProp("lostMs") ? lib.lostMs : 0
     if lib.HasOwnProp("pt")                           ; (a rod whose bar needs a tighter match, like Sanguine Spire's dark red)
         p.tolB := lib.pt
     if lib.HasOwnProp("pf")                           ; (and its fish: a fixed colour drawn on top, matched closely)
@@ -10373,6 +10406,9 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.7.5
+- New rod: Darkheart. Its near-black bar, grey-edged fish and the moments its reel goes dark are handled: FISCHXR waits out the darkness instead of ending the reel.
+
 5.7.4
 - New rod: Sanguine Spire. Its dark blood-red bar and fang-topped fish are read in daylight and at night.
 - Every rod: a reel that fades in no longer leaves FISCHXR with the wrong colours for the whole reel (a newly learned look waits one more screen grab to agree), and scenery elsewhere on the reel is no longer learned as the fish's colour.

@@ -1,9 +1,9 @@
 {
-  "version": "5.7.4",
+  "version": "5.7.5",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "54440afcdc2ddde1be26be4faf45862091a02a94239a20675377fbe1ef9e8901",
+  "sha256": "1a10e312ca01052508e3fff4bc29154111d8aa5267073e2864ce31864a9753fe",
   "exe_url": "https://reelworks.pages.dev/download/FISCHXR.exe",
-  "exe_sha256": "74715c823528545883b272bc8fd912216f71575eff1fbd8e48b02ab4f17bf856",
-  "notes": "New rod: Sanguine Spire.",
+  "exe_sha256": "ebbc6341e331444dcd2418848334e9197f89656612795d6fc32e7d3623dec247",
+  "notes": "New rod: Darkheart.",
   "api": "https://fischxr-api.exoartar.workers.dev/"
 }
