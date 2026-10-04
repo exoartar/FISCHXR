@@ -1,9 +1,9 @@
 {
-  "version": "5.7.5",
+  "version": "5.7.6",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "1a10e312ca01052508e3fff4bc29154111d8aa5267073e2864ce31864a9753fe",
+  "sha256": "98317c223e74489c58a5a7f818887ca947a23cfe44713a4e6abb211ad7bc9edd",
   "exe_url": "https://reelworks.pages.dev/download/FISCHXR.exe",
-  "exe_sha256": "ebbc6341e331444dcd2418848334e9197f89656612795d6fc32e7d3623dec247",
-  "notes": "New rod: Darkheart.",
+  "exe_sha256": "448dfdba475ff00b3e41b23a12fb2e415a370549deea3c155ffb10016f19dc4a",
+  "notes": "New rod: Nate's Blade.",
   "api": "https://fischxr-api.exoartar.workers.dev/"
 }

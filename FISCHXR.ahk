@@ -36,7 +36,7 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.7.5"
+APP_VER := "5.7.6"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
 DOWNLOAD_PAGE := "https://reelworks.pages.dev/download.html"   ; (the packaged FISCHXR.exe updates from here)
 IniPath := A_ScriptDir "\FISCHXR.ini"
@@ -203,6 +203,9 @@ RodLib := [
     ; (Darkheart: a near-black bar with white arrows on a grey track; the fish is a black pill with
     ; thin grey edges, so the edges are what it's found by. Its reel goes dark now and then.)
     {id: "darkheart",   name: "Darkheart",              fish: ["4C4C4C", "575757", "616161"], ft: 4,  bar: ["050505", "080808", "0B0B0B", "0E0E0E", "101010", "B6B6B6", "D4D6D6", "E8E9EC"], bt: 0, pt: 5, pf: 8, fw: 6, lostMs: 2500},
+    ; (Nate's Blade: an opaque orange reel; the bar is a lighter yellow-orange and grows as the reel goes on.
+    ; A face sits on the fish marker and hides it in the rows read, so the face is what's found as the fish.)
+    {id: "natesblade",  name: "Nate's Blade",           fish: ["FFFFFF", "000000", "030002", "DC9E1B", "DA9F20", "FF1600"], ft: 6,  bar: ["F9B423", "F9B325", "FBB423", "F7B423", "C28B1A"], bt: 2, pt: 8, pf: 12, gapW: 0.16, fmaxW: 0.18, barShare: 0.45},
     {id: "verdant",     name: "Verdant Oath",           kind: "wood", fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D", "6C0C00", "6C0C0C", "600C00", "741410"], bt: 5, greenBar: true},
     {id: "halibut",     name: "Halibut Harpoon",        fish: ["0D0B0B"], ft: 5,  bar: ["5D52A8"], bt: 5},
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
@@ -6498,7 +6501,7 @@ NewProfile(name, track, bar, fish, barW := 0) {
 ; missing something.
 FillProfile(p) {
     for k, v in Map("id", "", "name", "Rod", "track", [], "bar", [], "fish", [], "barW", 0
-        , "tolT", 24, "tolB", 24, "tolF", 22, "gain", 0, "redOK", false, "fw", 0, "lostMs", 0, "edgeT", "", "edgeB", "", "sovereign", 0
+        , "tolT", 24, "tolB", 24, "tolF", 22, "gain", 0, "redOK", false, "fw", 0, "lostMs", 0, "gapW", 0, "fmaxW", 0, "edgeT", "", "edgeB", "", "sovereign", 0
         , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0, "trkT", 0, "trkB", 0, "minSwitch", 0)
         if !p.HasOwnProp(k)
             p.%k% := v
@@ -6562,7 +6565,7 @@ VisionScan(b, p, predFish := -1) {
         covered += (l != 0)
         x++
     }
-    gapMax := Max(4, Round(w * 0.045))
+    gapMax := Max(4, Round(w * (p.gapW ? p.gapW : 0.045)))       ; (a rod whose fish hides a wide piece of its bar, like Nate's Blade's face, bridges more)
     bestN := 0, bl := -1, br := -1, cs := -1, cl := -1, cn := 0, x := 0
     while (x < w) {
         if (NumGet(lab, x, "UChar") = 2) {
@@ -6584,7 +6587,7 @@ VisionScan(b, p, predFish := -1) {
     ; Unknown colours off the bar may be the fish, except while probing a
     ; built-in style: it knows no track colours yet, so unknown means track.
     uf := !p.probe
-    maxF := Max(3, Round(w * 0.12)), fx := -1, fBest := -1e9, rs := -1, fishN := 0, fishCol := false, x := 0
+    maxF := Max(3, Round(w * (p.fmaxW ? p.fmaxW : 0.12))), fx := -1, fBest := -1e9, rs := -1, fishN := 0, fishCol := false, x := 0
     ; Colours nothing knows only make a fish if they're capsule-sized (a stretch
     ; of track whose colours weren't learned isn't one) and don't touch either
     ; end of the band; a standard bar that isn't white has the fish outside it.
@@ -6892,7 +6895,7 @@ BordersTrack(cols, w, bl, br, tl, tr) {
 ; Builds a profile from a frame where the bar is known to span [bl, br]:
 ; bar colours from inside, track colours from outside, and fish colours
 ; from narrow runs that fit neither.
-ProfileFromFrame(cols, w, bl, br, name := "", knownBar := "", fishAt := -1) {
+ProfileFromFrame(cols, w, bl, br, name := "", knownBar := "", fishAt := -1, knownFish := "") {
     inside := [], outside := []
     Loop w {
         x := A_Index - 1, c := NumGet(cols, x * 4, "UInt")
@@ -6902,6 +6905,18 @@ ProfileFromFrame(cols, w, bl, br, name := "", knownBar := "", fishAt := -1) {
             outside.Push(c)
     }
     barPal := VClusters(inside, 18, 0.08, 6)
+    ; (nor are the rod's own fish colours the bar's, however much of it they cover)
+    if IsObject(knownFish) {
+        keepB := []
+        for c in barPal {
+            own := false
+            for kf in knownFish
+                own := own || ColDist(c, kf) <= 12
+            if !own
+                keepB.Push(c)
+        }
+        barPal := keepB
+    }
     trackPal := VClusters(outside, 18, 0.10, 5)
     if (!barPal.Length || !trackPal.Length)
         return 0
@@ -6965,7 +6980,13 @@ ProfileFromFrame(cols, w, bl, br, name := "", knownBar := "", fishAt := -1) {
                 if (j != i)
                     for c2 in cj
                         if (ColDist(c, c2) <= 30) {
-                            decor.Push(c)
+                            ; (the rod's own fish colours are never artwork: a face's two eyes are the fish)
+                            own := false
+                            if IsObject(knownFish)
+                                for kf in knownFish
+                                    own := own || ColDist(c, kf) <= 12
+                            if !own
+                                decor.Push(c)
                             break 2
                         }
     if decor.Length {
@@ -7160,16 +7181,18 @@ ProbeLib(b, lib) {
         ResetLut(p)
         return {prof: p, d: d}
     }
-    probe := FillProfile({name: lib.name, bar: bars, fish: fishes, tolB: lib.bt + 6, tolF: lib.ft + 6, greenBar: green, probe: true, fw: lib.HasOwnProp("fw") ? lib.fw : 0, redOK: lib.HasOwnProp("redOK") && lib.redOK})
+    probe := FillProfile({name: lib.name, bar: bars, fish: fishes, tolB: lib.bt + 6, tolF: lib.ft + 6, greenBar: green, probe: true, gapW: lib.HasOwnProp("gapW") ? lib.gapW : 0, fmaxW: lib.HasOwnProp("fmaxW") ? lib.fmaxW : 0, fw: lib.HasOwnProp("fw") ? lib.fw : 0, redOK: lib.HasOwnProp("redOK") && lib.redOK})
     ResetLut(probe)
     d := VisionScan(b, probe)
     ; the rod's own fish colour, and mostly its own bar colours
-    if !(d.bar && d.fish && d.fishCol && d.n >= 0.6 * (d.br - d.bl + 1))
+    ; (mostly its own bar colours; a rod whose fish covers much of its bar, like
+    ; Nate's Blade's face on its narrow early bar, needs less of it showing)
+    if !(d.bar && d.fish && d.fishCol && d.n >= (lib.HasOwnProp("barShare") ? lib.barShare : 0.6) * (d.br - d.bl + 1))
         return 0
     bw := (d.br - d.bl + 1) / w
     if (bw < 0.03 || bw > 0.85)
         return 0
-    p := ProfileFromFrame(b.cols, w, d.bl, d.br, lib.name, bars, d.fishCol ? d.fx : -1)
+    p := ProfileFromFrame(b.cols, w, d.bl, d.br, lib.name, bars, d.fishCol ? d.fx : -1, fishes)
     if !p
         return 0
     ; the style's own colours plus the exact shades on screen (kept in memory only)
@@ -7179,6 +7202,7 @@ ProbeLib(b, lib) {
         p.fish.Push(f)
     p.lib := lib.id, p.greenBar := green, p.redOK := lib.HasOwnProp("redOK") && lib.redOK, p.fw := lib.HasOwnProp("fw") ? lib.fw : 0
     p.lostMs := lib.HasOwnProp("lostMs") ? lib.lostMs : 0
+    p.gapW := lib.HasOwnProp("gapW") ? lib.gapW : 0, p.fmaxW := lib.HasOwnProp("fmaxW") ? lib.fmaxW : 0
     if lib.HasOwnProp("pt")                           ; (a rod whose bar needs a tighter match, like Sanguine Spire's dark red)
         p.tolB := lib.pt
     if lib.HasOwnProp("pf")                           ; (and its fish: a fixed colour drawn on top, matched closely)
@@ -10406,6 +10430,9 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.7.6
+- New rod: Nate's Blade. Its orange reel, growing bar and the face that rides on the fish are read, from the moment the reel appears.
+
 5.7.5
 - New rod: Darkheart. Its near-black bar, grey-edged fish and the moments its reel goes dark are handled: FISCHXR waits out the darkness instead of ending the reel.
 
