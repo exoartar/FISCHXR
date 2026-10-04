@@ -36,8 +36,9 @@ UsePhysicalPixels()
 DllCall("winmm\timeBeginPeriod", "UInt", 1)
 
 APP_NAME := "FISCHXR"
-APP_VER := "5.4.3"
+APP_VER := "5.7.3"
 UPDATE_URL := "https://raw.githubusercontent.com/exoartar/FISCHXR/main/update.json"
+DOWNLOAD_PAGE := "https://reelworks.pages.dev/download.html"   ; (the packaged FISCHXR.exe updates from here)
 IniPath := A_ScriptDir "\FISCHXR.ini"
 ; Settings from before the rename come along once.
 if (!FileExist(IniPath) && FileExist(A_ScriptDir "\FischMacro.ini"))
@@ -129,7 +130,7 @@ Defaults := Map(
     "ShakeX1", 0.22, "ShakeY1", 0.10, "ShakeX2", 0.78, "ShakeY2", 0.75,
     "AqAuto", 0, "AqEvery", 63, "AqMaxUses", 12, "AqMaxBuys", 8, "AqStepDelay", 320,
     "AqOpenWait", 1500, "AqScrollSteps", 14,
-    "Theme", "Black", "Zoom", 100, "ColorSafe", 0, "ReduceMotion", 0, "Speak", 0, "Sounds", 0,
+    "CatchLog", 1, "Theme", "Black", "Zoom", 100, "ColorSafe", 0, "ReduceMotion", 0, "Speak", 0, "Sounds", 0,
     "ShowSplash", 1, "ShowHome", 1, "OnTop", 1, "ShowAreas", 0, "LastTab", "Fishing",
     "WinX", "", "WinY", "", "WinW", 540, "WinH", 416,
     "TotemAuto", 0, "TotemWait", 2500, "TotemSundial", 1, "NightLevel", 70,
@@ -145,7 +146,7 @@ Defaults := Map(
     "MiniHud", 1, "UpdateUrl", UPDATE_URL, "AutoUpdate", 1, "LastVersion", ""
 )
 TextKeys := "|AuthBanner|AuthAccentCol|AuthUser|AuthAvatar|BlockedReason|PlusAccess|ApiUrl|AuthScope|GuildId|PlusGlowColor|PlusGlowStyle|PlusTheme|PlusAccent|PlusPanelCorner|RodManual|AuthMode|AuthTok|AuthName|AuthId|ToggleKey|ExitKey|RodKey|ShakeMode|NavKey|ControlStyle|Theme|LastTab|WinX|WinY|SovInvKey|HookUrl|HookUser|RejoinLink|UpdateUrl|LastVersion|"
-BoolKeys := ["RodReequip", "UseNavKey", "AqAuto", "ColorSafe", "ReduceMotion", "Speak", "Sounds", "ShowSplash", "ShowHome", "OnTop", "ShowAreas"
+BoolKeys := ["CatchLog", "RodReequip", "UseNavKey", "AqAuto", "ColorSafe", "ReduceMotion", "Speak", "Sounds", "ShowSplash", "ShowHome", "OnTop", "ShowAreas"
     , "TotemAuto", "TotemSundial", "SovAuto", "HookStart", "HookErrors", "HookDisconnect", "HookJobs", "HookShots", "AutoReconnect", "RejoinResume", "ReelSnaps", "MiniHud", "AutoUpdate"]
 
 NumSpec := Map(
@@ -189,8 +190,13 @@ NumSpec := Map(
 ; saved about rods. greenBar: green inside the bar counts as bar, and the
 ; fish is aimed at that green zone (Verdant Oath).
 RodLib := [
-    {id: "standard",    name: "Standard",               fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36", "F8E8E0", "F8D0C8", "F8B8B0", "F8A098", "F89088", "F8786C", "F86050", "F8503C", "F84028", "F82C14", "F81800", "F81000"], bt: 6},
-    {id: "verdant",     name: "Verdant Oath",           kind: "wood", fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D"], bt: 5, greenBar: true},
+    {id: "standard",    name: "Standard",               fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36"], bt: 6},
+    ; (special bars that change colour: their shades only count when that rod is equipped, so
+    ; pink, lavender or blue scenery behind an ordinary rod's track is never taken for the bar)
+    {id: "ruinous",     name: "Ruinous Oath",           fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36", "F8E8E0", "F8D0C8", "F8B8B0", "F8A098", "F89088", "F8786C", "F86050", "F8503C", "F84028", "F82C14", "F81800", "F81000"], bt: 6},
+    {id: "luminescent", name: "Luminescent Oath",       fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36", "E0E0F4", "C8C8F0", "B4B8F4", "A0A4F4", "8C94F8", "6870F8", "5058F8", "3440F8", "2030F8", "0818F8", "0008F8"], bt: 6},
+    {id: "poseidon",    name: "Poseidon's Lance",       fish: ["434B5B"], ft: 5,  bar: ["F1F1F1", "848587", "4E332E", "4D2626", "4C2C2A", "542C24", "50342C", "583E36", "C0E0F0", "B0D0F0", "A0C8F0", "80C0F0", "60B0F0", "50A8F0", "30A0F0", "4090D0", "2090E0"], bt: 6},
+    {id: "verdant",     name: "Verdant Oath",           kind: "wood", fish: ["434B5B"], ft: 12, bar: ["67512C", "65502D", "6C0C00", "6C0C0C", "600C00", "741410"], bt: 5, greenBar: true},
     {id: "halibut",     name: "Halibut Harpoon",        fish: ["0D0B0B"], ft: 5,  bar: ["5D52A8"], bt: 5},
     {id: "remembrance", name: "Remembrance",            fish: ["FFFFFF"], ft: 10, bar: ["B5B5B5"], bt: 10},
     {id: "departed",    name: "Remembrance (Departed)", fish: ["FFFFFF"], ft: 10, bar: ["474747"], bt: 8},
@@ -222,7 +228,7 @@ OutReel := 0, OutShake := 0, OutAq := 0, CurTab := "Home"
 CurRod := 0, SelRod := 0, RodProfiles := [], ProfSeq := 0, VisionLog := []
 LiveBand := 0, LiveGeo := 0, LiveD := 0, LiveP := 0, LiveEp := -1, LiveT := 0, LiveHbm := 0, LiveRate := 0
 UpdAllowLocal := false, UpdLast := ""
-ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999, RemoteRebuild := false, GoalHit := "", HudView := 0, ReelActive := false
+ShapeWhy := "", UnmatchedAt := 0, CalmZoneOn := true, ChoseFishAt := -99999, RemoteRebuild := false, GoalHit := "", HudView := 0, ReelActive := false, UpdateWaiting := false, RightHeld := false
 ; Discord sign-in. The app's Client ID is public by design (no secret is used).
 DISCORD_CLIENT_ID := "1552771662787903568", DISCORD_PORT := 53682, DISCORD_INVITE := "https://discord.gg/ERkjTTYG4B"
 GUEST_TABS := ["Aquarium", "Sovereign", "Alerts", "Reconnect"]      ; (totems are open to guests)
@@ -234,6 +240,7 @@ AuthTest := IsSet(AuthTest) ? AuthTest : {noPrompt: false, noBrowser: false, me:
 if AuthTest.noPrompt
     AuthState.mode := AuthTest.mode != "" ? AuthTest.mode : "discord"
 SessionLooks := Map(), CurRodName := "", CurRodLib := "", RodReadBusy := false, RodReadAt := 0, RodReadLast := "", OcrHook := 0
+CatchSeq := 0, CatchBusyAt := 0, CatchLast := 0, LightTriedAt := 0, LightFailed := 0, LightLast := 0, LightSteadyMs := 120                    ; (the catch log: the read in progress, and the last catch)
 LivePreview := false, PreviewBand := 0, PreviewGeo := 0, EditCtls := Map(), ColX := 0, RowBase := 0
 Totems := [], SovReels := 0, SovLast := ""
 HookQueue := [], HookReq := 0, HookBusy := 0, HookLast := "", HookAllowLocal := false, HookItem := 0
@@ -283,6 +290,7 @@ if !Login.g                             ; (with the sign-in screen up, What's ne
     SetTimer(WhatsNewCheck, -1500)
 if (Cfg["AutoUpdate"] && Cfg["UpdateUrl"] != "")
     SetTimer(() => CheckForUpdate(true), -4000)
+SetTimer(CleanOldExe, -3000)                       ; (FISCHXR.exe: the copy from before an update)
 SetTimer(RefreshRobloxInfo, 2000)
 if Cfg["ShowAreas"]
     SetTimer(UpdateOverlay, 500)
@@ -519,6 +527,10 @@ ToggleMacro() {
 StartMacro() {
     global GoalHit
     GoalHit := ""
+    ; nothing stays open over the game while fishing (an update prompt from
+    ; start-up, say: it's asked again when fishing stops)
+    if Dialog.g
+        try Dialog.Close()
     SetTimer(RemoteReportSoon, -1500)
     global Running, RobloxHwnd, SovReels, ReconnectWhy, LogFile
     UsePhysicalPixels()
@@ -556,6 +568,8 @@ StartMacro() {
 }
 
 StopMacro(msg := "") {
+    if UpdateWaiting                                  ; (an update found earlier: ask now)
+        SetTimer(CheckForUpdate.Bind(true), -1500)
     if (Stats.start && !Stats.banked)                   ; the session's fishing time, all-time
         Cfg["LifeSecs"] += (A_TickCount - Stats.start) // 1000, Save("LifeSecs"), Stats.banked := true
     SetTimer(RemoteReportSoon, -1500)                  ; (the FISCHXR service hears it stopped)
@@ -703,8 +717,14 @@ MacroLoop() {
             chose := A_TickCount - ChoseFishAt < 15000
             ReelMouseSpot(chose)
             ReelActive := true                      ; (decoration waits: the reel gets the thread)
-            try res := Reel(b, geo, base, found, bR, geoR)
-            finally ReelActive := false
+            try {
+                res := Reel(b, geo, base, found, bR, geoR)
+                if (bR && Running)                  ; (Bellona's Waraxe: the right reel may still be up)
+                    RightFinish(bR, geoR, found.prof)
+            } finally {
+                ReelActive := false
+                RightRelease()
+            }
             ; A reel that ended early (lost tracking) while its UI is still up
             ; is resumed rather than cast over.
             resumes := 0
@@ -725,6 +745,7 @@ MacroLoop() {
             if ReconnectDue()          ; the game dropped mid-reel: don't count it
                 continue
             Stats.reels++, lastProgress := A_TickCount
+            CatchQueue(geo)
             GoalCheck()
             Cfg["LifeReels"] += 1, Save("LifeReels")
             SovReels++
@@ -1044,7 +1065,15 @@ ClickShake() {
 ;------------------------------------------------------------------------------
 Reel(b, geo, base, r, bR := 0, geoR := 0) {
     global HudView
-    dualSt := {lc: -1, lt: 0, rc: -1, rt: 0}              ; (Bellona's Waraxe: each bar's last move)
+    dualSt := {lc: -1, lt: 0, rc: -1, rt: 0, inL: 0, inR: 0, pick: "", pickAt: 0}   ; (Bellona's Waraxe)
+    rightSt := {hold: false, lastC: -1, lastT: 0, v: 0}                           ; (its right reel)
+    seen := 0, perfN := 0, perfCap := 0, perfScan := 0, fStart := QPC(), wideB := 0, wideGeo := 0, offL := 0, offR := 0
+    if bR {                                               ; (one capture for both reels, where they really are)
+        if (dw := DualWide(geo, geoR)) {
+            wideB := dw.b, wideGeo := dw.g, offL := dw.offL, offR := dw.offR
+            geo.x := wideGeo.x + offL, geoR.x := wideGeo.x + offR
+        }
+    }
     global CurRod, LiveD, LiveP, LiveEp, LiveT, LiveRate
     p := r.prof, w := b.w
     if p.notes
@@ -1069,6 +1098,8 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
     ; after a fish is chosen: it gets one at once, and a bar that doesn't move
     ; in its first 3 s isn't taken for scenery.
     frozenOK := InStr(CurRodName, "Splitbranch") ? 3000 : 0
+    if InStr(CurRodName, "Cinder Block")                     ; (its bar fills the track: it never moves)
+        frozenOK := 1e9
     if frozenOK {
         Click("Down")
         Sleep 120
@@ -1091,12 +1122,24 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
             continue
         }
         if (frame > 0 || !IsObject(d)) {
-            VisionGrab(b, geo)
-            d := VisionScan(b, p, f)
-            if bR {                                       ; Bellona's Waraxe: the other reel too, merged
-                VisionGrab(bR, geoR)
-                d := DualMerge(d, VisionScan(bR, p, f), dualSt)
+            tq0 := QPC(), fStart := tq0
+            if wideB {                                    ; Bellona's Waraxe: both reels in one capture
+                wideB.Grab(wideGeo.x, wideGeo.y)
+                BandSlice(wideB, b, offL), BandSlice(wideB, bR, offR)
+                b.geo := geo, bR.geo := geoR, ColumnColors(b, geo), ColumnColors(bR, geoR)
+            } else {
+                VisionGrab(b, geo)
+                if bR
+                    VisionGrab(bR, geoR)
             }
+            tq1 := QPC()
+            d := VisionScan(b, p, f)
+            if bR {                                       ; (the right reel: its own steering, on the right button)
+                dR := VisionScan(bR, p, f)
+                dualSt.dL := d, dualSt.dR := dR
+                RightSteer(dR, rightSt, bR.w)
+            }
+            perfN++, perfCap += tq1 - tq0, perfScan += QPC() - tq1
             ; Noiseform: a "bar" that stays put while the mouse has been held
             ; (or let go) for 0.45 s, away from both ends, can't be the bar
             ; (it would be moving): the emblem read as one. Steer by prediction.
@@ -1108,6 +1151,10 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
                     d.bar := false, d.cover := 0
             }
             ; Verdant Oath: aim the fish at the green zone, not the bar's centre
+            ; (its wooden blocks can hang past the track's ends, out of sight: the
+            ; bar is then where its green zone says, as wide as it has been)
+            if (p.greenBar && d.bar && bw && (d.bl <= 2 || d.br >= b.w - 3) && d.HasOwnProp("zc") && d.zc >= 0)
+                d.bl := d.zc - bw / 2, d.br := d.zc + bw / 2
             if (p.greenBar && d.bar && d.fish && (gz := (d.HasOwnProp("zc") ? d.zc : GreenZone(b, d))) >= 0)
                 d.fx -= gz - (d.bl + d.br) / 2
             ; Noiseform: after the warning, take the bar to the zone it named
@@ -1195,7 +1242,7 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
         ; The outline alone keeps the reel alive: the bar or fish can change
         ; look for a moment (a flash, a glow, the fish on the bar).
         if (present && (d.fish || d.bar || ep = 1)) {
-            lastUI := now, good++
+            lastUI := now, good++, seen++
             if (good = 30 && p.edgeT = "") {
                 e := FindEdges(b, geo)
                 if e.ok
@@ -1375,7 +1422,7 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
                 ; drifting apart, just keep the bar still instead of chasing the
                 ; exact centre (chasing it is what makes the bar bounce). Narrow
                 ; for Verdant Oath, whose green zone needs the precision.
-                dz := CalmZoneOn ? hw * (p.greenBar ? 0.06 : 0.2) : 0
+                dz := CalmZoneOn ? hw * ((p.greenBar || InStr(CurRodName, "Poseidon")) ? 0.06 : 0.2) : 0   ; (Poseidon's Lance: its blue sweet spot is the middle of the bar)
                 if (Abs(eL) < dz && Abs(de) < w * 0.00025)
                     hold := vL < 0
                 else
@@ -1435,7 +1482,8 @@ Reel(b, geo, base, r, bR := 0, geoR := 0) {
     if snaps {
         try SaveReelSnapshot(b, geo, p, trail, lostHbm, lostAt
             , phantom ? "the bar stopped answering the mouse (treated as scenery)" : endWhy != "" ? endWhy : "stopped"
-            , A_TickCount - t0, good)
+            , A_TickCount - t0, seen, perfN ? Format("{:.0f} frames a second (capture {:.1f} ms, reading {:.1f} ms a frame)"
+                , perfN * 1000 / Max(1, A_TickCount - t0), perfCap / perfN, perfScan / perfN) : "")
         if lostHbm
             DllCall("DeleteObject", "Ptr", lostHbm)
     }
@@ -1626,6 +1674,54 @@ MouseToCenter() {
 ReleaseMouse() {
     if GetKeyState("LButton")
         Click("Up")
+    RightRelease()
+}
+
+; Bellona's Waraxe: the right reel, steered on the right mouse button. Hold
+; when its fish is ahead of where its bar is heading (a short look ahead
+; from its speed), let go when behind; at the ends, keep pushing.
+RightSteer(d, st, w) {
+    global RightHeld
+    if !(d.bar && d.fish)
+        return
+    now := A_TickCount, c := (d.bl + d.br) / 2, hw := (d.br - d.bl) / 2
+    if (st.lastC >= 0 && now > st.lastT)
+        st.v := 0.6 * st.v + 0.4 * (c - st.lastC) / ((now - st.lastT) / 1000)
+    st.lastC := c, st.lastT := now
+    e := d.fx - (c + st.v * 0.18), dz := hw * 0.12
+    want := e > dz ? true : e < -dz ? false : st.hold
+    if (d.fx > w - hw * 0.9)
+        want := true
+    else if (d.fx < hw * 0.9)
+        want := false
+    if (want != st.hold) {
+        Click("Right " (want ? "Down" : "Up"))
+        st.hold := want, RightHeld := want
+    }
+}
+RightRelease() {
+    global RightHeld
+    if (RightHeld || GetKeyState("RButton"))
+        Click("Right Up")
+    RightHeld := false
+}
+; After the left reel ends: the right one steered alone until it's gone too.
+RightFinish(bR, geoR, p) {
+    st := {hold: false, lastC: -1, lastT: 0, v: 0}, gone := 0, t0 := A_TickCount
+    while (Running && A_TickCount - t0 < 90000) {
+        VisionGrab(bR, geoR)
+        d := VisionScan(bR, p)
+        if !(d.bar || d.fish) {
+            if !gone
+                gone := A_TickCount
+            if (A_TickCount - gone > 450)
+                break
+        } else
+            gone := 0
+        RightSteer(d, st, bR.w)
+        FineSleep(Cfg["ScanDelay"])
+    }
+    RightRelease()
 }
 
 ;==============================================================================
@@ -2537,6 +2633,7 @@ BuildSettings() {
     half := (LEFT_W - 12) // 2
     ActionBtn("Settings", 6, "Check for updates", (*) => SetTimer(CheckForUpdate.Bind(false), -1), "Checks the update link for a newer version and shows what changed.", PAD, half)
     ActionBtn("Settings", 6, "What's new", (*) => ShowWhatsNew(), "Shows the changes in this version.", PAD + half + 12, half)
+    ActionBtn("Settings", 7, "Open snapshots folder", (*) => OpenSnapshots(), "Opens the Snapshots folder next to the macro: saved snapshots, and reel records in Snapshots\Reels (send these when a reel goes wrong).")
     Pages["Settings"].desc := ""
 }
 
@@ -2600,6 +2697,7 @@ BuildReel() {
     Stepper("Reel", 3, "EdgeMargin")
     Stepper("Reel", 4, "ScanDelay")
     Stepper("Reel", 5, "Predict")
+    Toggle("Reel", 7, "CatchLog", "Read each catch", "Reads the catch message after each reel and keeps Catches.csv next to the macro. Rare catches (1 in 100 or rarer) go to the FISCHXR Discord when you're signed in.")
     Toggle("Reel", 6, "ReelSnaps", "Record each reel's end", "Saves a screenshot, the reel band and a frame-by-frame report every time a reel ends, to Snapshots\Reels. Keeps the last 10.")
     Pages["Reel"].desc := ""
 }
@@ -6218,6 +6316,155 @@ ColumnColors(b, geo) {
         NumPut("UInt", (mr << 16) | (mg << 8) | mb, cols, o)
         x++
     }
+    ; (an untouched copy, for when the colours are corrected for lighting)
+    if (!b.HasOwnProp("raw") || b.raw.Size != cols.Size)
+        b.raw := Buffer(cols.Size)
+    DllCall("RtlMoveMemory", "Ptr", b.raw.Ptr, "Ptr", cols.Ptr, "UPtr", cols.Size)
+    b.gained := 0
+}
+
+; ---- Lighting
+; When the whole reel is dimmed or tinted (a dark overlay, a night or event
+; filter, HDR), its white bar isn't white any more and nothing matches. The
+; brightest part of the strip is then taken as the bar, and every colour is
+; scaled per channel so that it is white again (gain). Dimming and colour
+; tints are undone exactly; a profile found this way keeps its gain for the
+; rest of the reel.
+LightGain(b) {
+    ; Returns the corrections worth trying, as [kr, kg, kb, cr, cg, cb]:
+    ; colour = (seen - c) * k. Three ways: per colour channel (a dim or tinted
+    ; overlay: the white bar made white again), brightness only (the same, for
+    ; a bar that is itself coloured, like Ruinous Oath's red), and from two
+    ; points (a see-through coloured layer, which also lifts the darks: the
+    ; darkest part of the strip is taken as the usual dark track).
+    if !b.HasOwnProp("raw")
+        return 0
+    w := b.w, hist := []
+    hist.Length := 256
+    Loop 256
+        hist[A_Index] := 0
+    Loop w {
+        c := NumGet(b.raw, (A_Index - 1) * 4, "UInt")
+        hist[(2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) // 8 + 1] += 1
+    }
+    want := Max(8, Round(w * 0.06)), n := 0, hi := 255
+    while (hi > 0 && n + hist[hi + 1] < want)
+        n += hist[hi + 1], hi--
+    n := 0, lo := 0
+    while (lo < 255 && n + hist[lo + 1] < want)
+        n += hist[lo + 1], lo++
+    brightC := [0, 0, 0], darkC := [0, 0, 0], kb := 0, kd := 0
+    Loop w {
+        c := NumGet(b.raw, (A_Index - 1) * 4, "UInt"), r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255, l := (2 * r + 5 * g + bb) // 8
+        if (l >= hi)
+            brightC[1] += r, brightC[2] += g, brightC[3] += bb, kb++
+        if (l <= lo)
+            darkC[1] += r, darkC[2] += g, darkC[3] += bb, kd++
+    }
+    if (!kb || !kd)
+        return 0
+    ; only worth trying when the bright part is one unbroken block of a bar's
+    ; width (text, sparkles or glints on the water are scattered)
+    run := 0, longest := 0, endAt := 0, cut2 := hi * 0.8
+    Loop w {
+        c := NumGet(b.raw, (A_Index - 1) * 4, "UInt")
+        if ((2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) // 8 >= cut2) {
+            run++
+            if (run > longest)
+                longest := run, endAt := A_Index
+        } else
+            run := 0
+    }
+    if (longest < Max(20, w * 0.03) || longest > w * 0.85)
+        return 0
+    b.lightBlock := [endAt - longest, endAt]          ; (where the bright block is)
+    Loop 3
+        brightC[A_Index] /= kb, darkC[A_Index] /= kd
+    b.lightBright := brightC                            ; (for PaletteGain)
+    lum := (2 * brightC[1] + 5 * brightC[2] + brightC[3]) / 8
+    ; only steady light: a reel fading in looks dimmed for a moment, and its
+    ; correction would be wrong for the rest of the reel
+    global LightLast, LightSteadyMs
+    if (LightSteadyMs > 0) {
+        if (!IsObject(LightLast) || A_TickCount - LightLast[1] > 1500 || Abs(lum - LightLast[2]) > 8) {
+            LightLast := [A_TickCount, lum]
+            return 0
+        }
+        if (A_TickCount - LightLast[1] < LightSteadyMs)
+            return 0
+    }
+    if (lum < 35 || lum > 222)                         ; (too dark to be a bar, or already bright enough)
+        return 0
+    out := []
+    k := [Min(5, 241 / Max(brightC[1], 1)), Min(5, 241 / Max(brightC[2], 1)), Min(5, 241 / Max(brightC[3], 1))]
+    out.Push([k[1], k[2], k[3], 0, 0, 0])
+    u := Min(5, 241 / lum)
+    out.Push([u, u, u, 0, 0, 0])
+    T := [16, 28, 30]                                  ; (the usual dark track)
+    two := []
+    Loop 3 {
+        i := A_Index, kk := (brightC[i] - darkC[i]) / (241 - T[i])
+        if (kk < 0.15)
+            break
+        two.Push(kk)
+    }
+    if (two.Length = 3) {
+        c1 := darkC[1] - two[1] * T[1], c2 := darkC[2] - two[2] * T[2], c3 := darkC[3] - two[3] * T[3]
+        if (Max(c1, c2, c3) > 6)                       ; (only worth it when the darks are lifted)
+            out.Push([1 / two[1], 1 / two[2], 1 / two[3], c1, c2, c3])
+    }
+    return out
+}
+
+; The brightness correction that turns the brightest colour on screen back
+; into one of this rod's own bar colours (an evenly dimmed coloured bar, like
+; Ruinous Oath's red): the bar colour whose channels were all dimmed by the
+; same amount wins.
+PaletteGain(seen, lib) {
+    best := 0, bestSpread := 0.12
+    for h in lib.bar {
+        c := Integer("0x" h), P := [(c >> 16) & 255, (c >> 8) & 255, c & 255], ks := []
+        Loop 3
+            if (P[A_Index] >= 40)
+                ks.Push(seen[A_Index] / P[A_Index])
+        if (ks.Length < 2)
+            continue
+        mean := 0
+        for v in ks
+            mean += v
+        mean /= ks.Length
+        if (mean < 0.2 || mean > 0.93)
+            continue
+        lo := 9, hi := 0
+        for v in ks
+            lo := Min(lo, v), hi := Max(hi, v)
+        if ((hi - lo) / mean < bestSpread) {
+            bestSpread := (hi - lo) / mean, u := Min(5, 1 / mean)
+            best := [u, u, u, 0, 0, 0]
+        }
+    }
+    return best
+}
+
+ApplyGain(b, gain) {
+    if (b.HasOwnProp("gained") && b.gained == gain)
+        return
+    w := b.w, raw := b.raw, cols := b.cols, kr := gain[1], kg := gain[2], kb := gain[3]
+    cr := gain.Length >= 6 ? gain[4] : 0, cg := gain.Length >= 6 ? gain[5] : 0, cb := gain.Length >= 6 ? gain[6] : 0
+    Loop w {
+        o := (A_Index - 1) * 4, c := NumGet(raw, o, "UInt")
+        r := Max(0, Min(255, Round((((c >> 16) & 255) - cr) * kr))), g := Max(0, Min(255, Round((((c >> 8) & 255) - cg) * kg)))
+        bb := Max(0, Min(255, Round(((c & 255) - cb) * kb)))
+        NumPut("UInt", (r << 16) | (g << 8) | bb, cols, o)
+    }
+    b.gained := gain
+}
+
+UnGain(b) {
+    if (b.HasOwnProp("gained") && b.gained) {
+        DllCall("RtlMoveMemory", "Ptr", b.cols.Ptr, "Ptr", b.raw.Ptr, "UPtr", b.raw.Size)
+        b.gained := 0
+    }
 }
 
 ; Largest per-channel difference between two 0xRRGGBB colours.
@@ -6242,7 +6489,7 @@ NewProfile(name, track, bar, fish, barW := 0) {
 ; missing something.
 FillProfile(p) {
     for k, v in Map("id", "", "name", "Rod", "track", [], "bar", [], "fish", [], "barW", 0
-        , "tolT", 24, "tolB", 24, "tolF", 22, "edgeT", "", "edgeB", "", "sovereign", 0
+        , "tolT", 24, "tolB", 24, "tolF", 22, "gain", 0, "edgeT", "", "edgeB", "", "sovereign", 0
         , "reels", 0, "lib", "", "used", 0, "relearn", false, "greenBar", false, "probe", false, "kind", "", "capRow", 0, "notes", false, "boxRow", 0, "boxMiss", 0, "boxPrevT", 0, "boxH", 0, "zoneRow", 0, "trkT", 0, "trkB", 0, "minSwitch", 0)
         if !p.HasOwnProp(k)
             p.%k% := v
@@ -6293,6 +6540,8 @@ VisionScan(b, p, predFish := -1) {
         return WoodScan(b, b.geo, predFish, p)
     if (p.kind = "sun")
         return SunScan(b, b.geo, predFish, p)
+    if (p.HasOwnProp("gain") && p.gain)
+        ApplyGain(b, p.gain)
     w := b.w, cols := b.cols, lab := b.lab, lut := p.lut, covered := 0, x := 0
     while (x < w) {
         c := NumGet(cols, x * 4, "UInt")
@@ -6887,7 +7136,18 @@ MatchLibrary(b) {
 ; if that isn't known, every built-in style is tried and the best fit wins.
 ; The chosen style is kept for this session only (never saved), so the next
 ; reel is recognized at once.
+; The same bright block that couldn't be read a moment ago (a glint, a dock
+; edge) isn't tried again for 2 seconds; a reel's bar appears and moves.
+LightWorthTrying(b) {
+    global LightFailed, LightTriedAt
+    if !IsObject(LightFailed)
+        return true
+    same := Abs(b.lightBlock[1] - LightFailed[1]) <= 6 && Abs(b.lightBlock[2] - LightFailed[2]) <= 6
+    return !same || A_TickCount - LightTriedAt >= 2000
+}
+
 MatchPrecoded(b, geo, all := false) {
+    global LightTriedAt, LightFailed
     ids := []
     if (CurRodLib != "" && !all) {
         ids.Push(CurRodLib)
@@ -6900,6 +7160,7 @@ MatchPrecoded(b, geo, all := false) {
             ids.Push(lib.id)
     best := 0, bestScore := 0, bestId := ""
     for id in ids {
+        UnGain(b)                                      ; (each try starts from the colours as they are)
         ; (Noiseform's look is taken fresh every reel: the bar's width changes
         ; from fish to fish, and its learned background from cast to cast)
         if (SessionLooks.Has(id) && !(SessionLooks[id].HasOwnProp("kind") && SessionLooks[id].kind = "box")) {
@@ -6924,6 +7185,37 @@ MatchPrecoded(b, geo, all := false) {
     }
     if best
         SessionLooks[bestId] := best.prof
+    else if (A_TickCount - LightTriedAt >= 150 && (gains := LightGain(b)) && LightWorthTrying(b)) {
+        ; nothing matched as it is: try again with the lighting corrected
+        ; (the colour-matched styles only; styles read by shape are left alone)
+        bestGain := 0
+        for id in (CurRodLib != "" ? ids : ["standard"]) {          ; (a rod that isn't named: the standard look only)
+            lib := 0
+            for l in RodLib
+                if (l.id = id)
+                    lib := l
+            if (!lib || (lib.HasOwnProp("kind") && lib.kind != ""))
+                continue
+            tries := gains.Clone()
+            if (pg := PaletteGain(b.lightBright, lib))
+                tries.Push(pg)
+            for gain in tries {
+                ApplyGain(b, gain)
+                if (r := ProbeLib(b, lib)) {
+                    sc := r.d.cover + (r.d.fish ? 0.2 : 0)
+                    if (sc > bestScore)
+                        best := r, bestScore := sc, bestId := id, bestGain := gain
+                }
+            }
+        }
+        if best {
+            best.prof.gain := bestGain
+            ApplyGain(b, bestGain)
+            SessionLooks[bestId] := best.prof
+            try LogEvent("The reel looks dimmed or tinted: reading it with the colours corrected")
+        } else
+            UnGain(b), LightTriedAt := A_TickCount, LightFailed := b.lightBlock   ; (not for another 150 ms: it isn't cheap)
+    }
     return best
 }
 
@@ -8337,7 +8629,7 @@ TealDarkRuns(b, y, w, delta) {
 WoodPx(c) {
     r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255
     return (r >= 78 && r - bb >= 35 && g - bb >= 12 && r >= g + 10)   ; brown
-        || (r >= 90 && r - g >= 50 && r - bb >= 50)                     ; dark red (the red flash)
+        || (r >= 80 && g <= 34 && bb <= 34 && r - g >= 50)              ; dark red (the red flash; the track's red there keeps its green and blue)
 }
 GreyPx(c) {
     r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255, l := Lum(c)
@@ -8383,6 +8675,26 @@ WoodScan(b, geo, predFish := -1, p := 0) {
             if (sc < bs)
                 bs := sc, best := [a, z, cutA, cutZ]
         }
+    if (!best && runs.Length && p && p.HasOwnProp("woodW") && p.woodW > 0) {
+        ; one block in view, the other wholly past an edge (the blocks can hang
+        ; past the reel's ends): the green runs from this block to that edge,
+        ; and the bar is as wide as it last was
+        GreenShare(x0, x1) {
+            n := 0, g := 0, x := Max(0, x0)
+            while (x <= Min(w - 1, x1)) {
+                c := NumGet(b.cols, x * 4, "UInt"), n++, cg := (c >> 8) & 255
+                g += cg >= ((c >> 16) & 255) + 8 && cg >= (c & 255) + 8      ; (green, however dark: the red flash darkens it)
+                x += 2
+            }
+            return n ? g / n : 0
+        }
+        a := runs[runs.Length], z := runs[1], bwp := p.woodW, wa := a[2] - a[1]
+        if (w - 1 - a[2] >= w * 0.02 && w - 1 - a[2] < bwp - wa && GreenShare(a[2] + 3, w - 3) >= 0.4)
+            return {bar: true, bl: a[1], br: a[1] + bwp, zc: a[2] + (bwp - 2 * wa) / 2, fish: false, fx: -1, cover: 1, n: bwp, fishCol: false}
+        wz := z[2] - z[1]
+        if (z[1] >= w * 0.02 && z[1] < bwp - wz && GreenShare(2, z[1] - 3) >= 0.4)
+            return {bar: true, bl: z[2] - bwp, br: z[2], zc: z[1] - (bwp - 2 * wz) / 2, fish: false, fx: -1, cover: 1, n: bwp, fishCol: false}
+    }
     if !best {
         ShapeWhy := Format("{} brown block(s) on the reel, but no matching pair", runs.Length)
         return none
@@ -8392,6 +8704,8 @@ WoodScan(b, geo, predFish := -1, p := 0) {
         bl := a[2] - (z[2] - z[1])                ; left block partly out of view
     if best[4]
         br := z[1] + (a[2] - a[1])                ; right block partly out of view
+    if (p && !best[3] && !best[4])
+        p.woodW := br - bl                        ; (the whole bar in view: its width, for when it isn't)
     ; the blocks' top and bottom, down the middle of the left block
     cx := (a[1] + a[2]) // 2, o := cx * 4, top := geo.r2, bot := geo.r2
     while (top > 0 && WoodPx(NumGet(b.bits, (top - 1) * b.stride + o, "UInt")))
@@ -8459,7 +8773,11 @@ WoodGreyRuns(b, y, w) {
 ;------------------------------------------------------------------------------
 SunPx(c) {
     r := (c >> 16) & 255, g := (c >> 8) & 255, bb := c & 255
-    return r >= 60 && r - bb >= 25 && r - g >= 15
+    return (r >= 60 && r - bb >= 25 && r - g >= 15)
+        ; (the bar's dark looks while the fish is outside it, from dark brown to
+        ; nearly black: always warm, red a little above green and well above
+        ; blue; the track is cool, its green above its red)
+        || (r >= 20 && r <= 70 && r - g >= 2 && r - bb >= 8 && g - bb <= 12)
 }
 SunScan(b, geo, predFish := -1, p := 0) => TealScan(b, geo, predFish, p, SunPx, 76, "brown")
 
@@ -8533,13 +8851,13 @@ IsRedBar(b, bl, br) {
 IsTintedBar(b, bl, br) {
     ; (only a dim tint: red, tan... A lit coloured bar, like Ruinous Oath's
     ; pink-to-red one, keeps a bright red channel and has the fish in it.)
-    t := 0, rs := 0, n := 0, x := bl
+    t := 0, rs := 0, bs := 0, n := 0, x := bl
     while (x <= br) {
         c := NumGet(b.cols, x * 4, "UInt")
-        t += (2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3, rs += (c >> 16) & 255, n++
+        t += (2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3, rs += (c >> 16) & 255, bs += c & 255, n++
         x += 2
     }
-    return n && t / n < 170 && rs / n < 170
+    return n && t / n < 170 && rs / n < 170 && bs / n < 170       ; (Luminescent Oath's blue is lit too)
 }
 
 
@@ -8706,8 +9024,8 @@ DualArea(a, cr, side) {
 ; Bellona's Waraxe: one reading from the two reels. One mouse drives both
 ; bars the same way, so they move together; a bar that stays put while the
 ; other moves is frozen (its reel done or stalled) and is left out. The fish
-; to follow: between the two if both fit under the bar, else the one nearer
-; the bar (keeping one rather than losing both); or the only one there is.
+; to follow: between the two if both fit under the bar, else in turns (the
+; one out longer, each turn at least 1.2 s); or the only one there is.
 DualMerge(dL, dR, st, now := -1) {
     now := now >= 0 ? now : A_TickCount
     if dL.bar {
@@ -8721,6 +9039,13 @@ DualMerge(dL, dR, st, now := -1) {
             st.rc := c, st.rt := now
     }
     st.dL := dL, st.dR := dR                              ; (for the fishing panel)
+    if !st.HasOwnProp("pick")
+        st.inL := 0, st.inR := 0, st.pick := "", st.pickAt := 0
+    ; each reel: when its fish was last under its own bar
+    if (dL.bar && dL.fish && dL.fx >= dL.bl && dL.fx <= dL.br)
+        st.inL := now
+    if (dR.bar && dR.fish && dR.fx >= dR.bl && dR.fx <= dR.br)
+        st.inR := now
     movL := now - st.lt < 450, movR := now - st.rt < 450
     useL := dL.bar && !(!movL && movR), useR := dR.bar && !(!movR && movL)
     if !(useL || useR)
@@ -8732,12 +9057,91 @@ DualMerge(dL, dR, st, now := -1) {
         d := useL ? dL : dR
     fl := useL && dL.fish ? dL.fx : -1, fr := useR && dR.fish ? dR.fx : -1
     bc := (d.bl + d.br) / 2, bw := d.br - d.bl
-    if (fl >= 0 && fr >= 0)
-        fx := Abs(fl - fr) <= 0.7 * bw ? (fl + fr) / 2 : (Abs(fl - bc) <= Abs(fr - bc) ? fl : fr)
-    else
+    if (fl >= 0 && fr >= 0 && Abs(fl - fr) <= 0.7 * bw)
+        fx := (fl + fr) / 2                               ; (both fit: cover both)
+    else if (fl >= 0 && fr >= 0) {
+        ; both can't be covered: take turns, going to the fish that has been out
+        ; longer, and keeping each turn at least 1.2 s (so both reels get on)
+        want := st.inL <= st.inR ? "L" : "R"
+        if (st.pick = "" || (want != st.pick && now - st.pickAt >= 1200))
+            st.pick := want, st.pickAt := now
+        fx := st.pick = "L" ? fl : fr
+    } else
         fx := fl >= 0 ? fl : fr
     d.fish := fx >= 0, d.fx := fx
     return d
+}
+
+; Bellona's Waraxe: one capture wide enough for both reels, with where each
+; reel's track really is in it (found on the reel's first frame: two long
+; stretches of track or bar, one either side of the middle, each about a
+; reel wide). {b, g, offL, offR}, or 0 (then each reel is captured by itself).
+DualWide(geoL, geoR) {
+    ext := Round(geoL.w * 0.12), x0 := Max(0, geoL.x - ext), x1 := Min(A_ScreenWidth, geoR.x + geoR.w + ext)
+    if (x1 - x0 < geoL.w * 2)
+        return 0
+    g := VisionGeo({x1: x0, y1: geoL.y + geoL.m, w: x1 - x0, h: geoL.ih})
+    wb := BandGrab(g.w, g.h)
+    VisionGrab(wb, g)
+    offs := DualTracks(wb, geoL.w)
+    if !offs {
+        offs := [geoL.x - x0, geoR.x - x0]                 ; (not found: where the reel box put them)
+        LogVision("Bellona's Waraxe: couldn't find both tracks, using the reel box's places")
+    } else
+        LogVision(Format("Bellona's Waraxe: the two reels found at x {} and {}", x0 + offs[1], x0 + offs[2]))
+    offs[1] := Clamp(offs[1], 0, g.w - geoL.w), offs[2] := Clamp(offs[2], 0, g.w - geoR.w)
+    return {b: wb, g: g, offL: offs[1], offR: offs[2]}
+}
+
+; In a wide band: the start of the left and right tracks (the track's own dark,
+; measured in the band, or the white bar; short breaks allowed for the fish),
+; each 80-125% of trackW long, one either side of the middle. Or 0.
+DualTracks(wb, trackW) {
+    w := wb.w, gap := Max(4, Round(w * 0.02)), runs := [], st := -1, miss := 0, last := 0, x := 0
+    ; the track is the darkest thing along the row (the scenery can be dark
+    ; too, but not that dark): its level from the darkest fifth of the row
+    Lv := [], v := ""
+    while (x < w) {
+        c := NumGet(wb.cols, x * 4, "UInt")
+        Lv.Push((2 * ((c >> 16) & 255) + 5 * ((c >> 8) & 255) + (c & 255)) >> 3)
+        if !Mod(x, 8)
+            v .= Format("{:03}", Lv[x + 1]) "`n"
+        x++
+    }
+    srt := StrSplit(Sort(RTrim(v, "`n")), "`n"), trk := Integer(srt[Max(1, srt.Length // 5)]), x := 0
+    while (x <= w) {
+        on := false
+        if (x < w)
+            on := Lv[x + 1] <= trk + 20 || Lv[x + 1] > 200
+        if on {
+            if (st < 0)
+                st := x
+            miss := 0, last := x
+        } else if (st >= 0 && (++miss > gap || x >= w)) {
+            if (last - st + 1 >= 0.8 * trackW && last - st + 1 <= 1.25 * trackW)
+                runs.Push([st, last])
+            st := -1, miss := 0
+        }
+        x++
+    }
+    lt := 0, rt := 0                                     ; (the left and right tracks)
+    for run in runs {
+        mid := (run[1] + run[2]) / 2
+        if (mid < w / 2 && (!lt || run[1] < lt[1]))
+            lt := run
+        if (mid > w / 2 && (!rt || run[1] > rt[1]))
+            rt := run
+    }
+    return (lt && rt) ? [lt[1], rt[1]] : 0
+}
+
+; Copies the part of a wide band from column off into a narrower band, row by row.
+BandSlice(src, dst, off) {
+    n := Min(dst.w, src.w - off) * 4, h := Min(dst.h, src.h), y := 0
+    while (y < h) {
+        DllCall("RtlMoveMemory", "Ptr", dst.bits + y * dst.stride, "Ptr", src.bits + y * src.stride + off * 4, "UPtr", n)
+        y++
+    }
 }
 
 
@@ -9538,7 +9942,7 @@ ReconnectStatusText() {
 ; screenshot of the Roblox window, the reel band when the reel first looked
 ; gone and at the end, and the last frames' readings. The last ten are kept.
 ;------------------------------------------------------------------------------
-SaveReelSnapshot(b, geo, p, trail, lostHbm, lostAt, reason, dur := 0, good := 0) {
+SaveReelSnapshot(b, geo, p, trail, lostHbm, lostAt, reason, dur := 0, good := 0, speed := "") {
     dir := A_ScriptDir "\Snapshots\Reels"
     try DirCreate(dir)
     stamp := FormatTime(, "yyyy-MM-dd_HH-mm-ss") "_" A_MSec
@@ -9557,6 +9961,7 @@ SaveReelSnapshot(b, geo, p, trail, lostHbm, lostAt, reason, dur := 0, good := 0)
         . "Why it ended: " reason "`n"
         . "First looked gone: " (lostAt >= 0 ? lostAt " ms into the reel" : "never") "`n"
         . "Reel length: " dur " ms, frames with the reel seen: " good "`n"
+        . (speed != "" ? "Speed: " speed "`n" : "")
         . Format("Band: {}x{} at {},{} (margin {}, reel height {})", b.w, b.h, geo.x, geo.y, geo.m, geo.ih) "`n"
         . Format("Reel box: {:.4f} {:.4f} {:.4f} {:.4f}", Cfg["ReelX1"], Cfg["ReelY1"], Cfg["ReelX2"], Cfg["ReelY2"]) "`n"
         . (cr ? "Roblox window: " cr.w "x" cr.h "`n" : "")
@@ -9729,7 +10134,14 @@ UpdateInfo() {
         Cfg["ApiUrl"] := api, Save("ApiUrl")
     if (v = "" || u = "" || !RegExMatch(h, "^[0-9a-f]{64}$"))
         return "The update file is missing its version, download link or SHA-256."
-    return {version: v, url: u, sha256: h, notes: JsonField(txt, "notes")}
+    return {version: v, url: u, sha256: h, notes: JsonField(txt, "notes")
+        , exeUrl: JsonField(txt, "exe_url"), exeSha: StrLower(JsonField(txt, "exe_sha256"))}
+}
+
+; Whether the update file names a new FISCHXR.exe (with its fingerprint).
+ExeUpdatable(info) {
+    return info.HasOwnProp("exeUrl") && RegExMatch(info.exeSha, "^[0-9a-f]{64}$")
+        && (RegExMatch(info.exeUrl, "i)^https://") || (UpdAllowLocal && RegExMatch(info.exeUrl, "^http://127\.0\.0\.1:\d+/")))
 }
 
 UpdateNote(msg) {
@@ -9755,16 +10167,29 @@ CheckForUpdate(quiet := false, *) {
             Dialog.Show("Updates", "You have the latest version (" APP_VER ").", "Close")
         return
     }
+    global UpdateWaiting
     UpdateNote("Version " info.version " is available.")
+    UpdateWaiting := true                                ; (asked again after fishing stops)
     if (quiet && Running)
         return
+    manual := A_IsCompiled && !ExeUpdatable(info)
     Dialog.Show("Update to " info.version "?", (info.notes != "" ? info.notes "`n`n" : "")
-        . "The macro downloads it, checks its fingerprint, keeps your current file as a backup and restarts."
-        , "Update now", (*) => ApplyUpdate(info), "Later")
+        . (manual ? "The new FISCHXR.exe is on the download page."
+            : "The macro downloads it, checks its fingerprint, swaps itself for it and restarts.")
+        , manual ? "Download" : "Update now", (*) => ApplyUpdate(info), "Later")
 }
 
 ; Downloads, verifies and installs an update. True when installed.
 ApplyUpdate(info, target := "", restart := true) {
+    ; The packaged FISCHXR.exe swaps itself for the new FISCHXR.exe (when the
+    ; update file names one); otherwise the download page has it.
+    if (A_IsCompiled && target = "") {
+        if ExeUpdatable(info)
+            return ApplyExeUpdate(info, A_ScriptFullPath)
+        try Run(DOWNLOAD_PAGE)
+        UpdateNote("Version " info.version " is on the download page.")
+        return false
+    }
     target := target != "" ? target : A_ScriptFullPath
     if Running
         StopMacro()
@@ -9795,6 +10220,71 @@ ApplyUpdate(info, target := "", restart := true) {
     return true
 }
 
+; The packaged FISCHXR.exe updating itself. A running program can't be
+; overwritten, but it can be renamed: so it becomes FISCHXR.old.exe, the new
+; one takes its name, starts, and deletes the old one. Anything that fails
+; leaves the current FISCHXR.exe exactly where it was.
+ApplyExeUpdate(info, target, restart := true) {
+    if Running
+        StopMacro()
+    url := info.exeUrl (InStr(info.exeUrl, "?") ? "&" : "?") "v=" info.version      ; (never a cached copy)
+    try buf := HttpGet(url, &st, true, 60000)
+    catch
+        return UpdateFailed("Couldn't download the new FISCHXR.exe. It tries again later.")
+    if (st = 503)
+        return UpdateFailed("Downloads are paused right now, so the update waits. It tries again later.")
+    if (st != 200)
+        return UpdateFailed("The download answered HTTP " st ". It tries again later.")
+    if (Sha256Hex(buf) != info.exeSha)
+        return UpdateFailed("The new FISCHXR.exe didn't match its fingerprint, so it wasn't used. (The website may still be updating: it tries again later.)")
+    if (buf.Size < 500000 || NumGet(buf, 0, "UShort") != 0x5A4D)
+        return UpdateFailed("The download isn't a program, so it wasn't used.")
+    SplitPath(target, , &dir, , &stem)
+    tmp := target ".new", old := dir "\" stem ".old.exe"
+    try {
+        f := FileOpen(tmp, "w"), f.RawWrite(buf, buf.Size), f.Close()
+    } catch
+        return ExeUpdateManual(info, "Couldn't save the new FISCHXR.exe in its folder.")
+    try FileDelete(old)
+    moved := false
+    try {
+        FileMove(target, old, true), moved := true
+        FileMove(tmp, target, false)
+    } catch {
+        if moved
+            try FileMove(old, target, true)                ; (put the current one back)
+        try FileDelete(tmp)
+        return ExeUpdateManual(info, "Couldn't swap FISCHXR.exe in its folder.")
+    }
+    UpdateNote("Updated to " info.version ". Restarting…")
+    LogEvent("Updated to " info.version)
+    if restart {
+        try Run('"' target '"', dir)
+        ExitApp()
+    }
+    return true
+}
+
+; When the folder can't be written to (Program Files, a read-only drive):
+; the download page instead, as before.
+ExeUpdateManual(info, why) {
+    UpdateFailed(why " The download page has the new version.")
+    try Run(DOWNLOAD_PAGE)
+    return false
+}
+
+; After an update, the previous FISCHXR.exe is removed once it has closed.
+CleanOldExe() {
+    if !A_IsCompiled
+        return
+    SplitPath(A_ScriptFullPath, , &dir, , &stem)
+    old := dir "\" stem ".old.exe"
+    if FileExist(old)
+        try FileDelete(old)
+        catch
+            SetTimer(CleanOldExe, -5000)                  ; (still closing: again shortly)
+}
+
 ; The bytes with every CR-LF turned into LF, for the fingerprint.
 NormalizeEol(buf) {
     sz := buf.Size, out := Buffer(Max(1, sz)), n := 0, i := 0
@@ -9818,6 +10308,49 @@ UpdateFailed(msg) {
 ChangelogText() {
     return "
 (
+5.7.3
+- FISCHXR.exe now updates itself, like the script version: "Update now" downloads the new FISCHXR.exe, checks its fingerprint, swaps itself for it and restarts. If its folder can't be written to, the download page opens instead, as before.
+
+5.7.2
+- Dark or tinted lighting: when something dims or colours the whole reel (a dark event, a night filter, HDR or a graphics filter), FISCHXR could see nothing at all. It now notices the reel looks dimmed or tinted, corrects its colours, and reads it as normal. Your event log says when it does.
+
+5.7.1
+- Ordinary rods no longer mistake bright blue, lavender or pink scenery for the bar (it could show the whole track as bar). The changing colours of Ruinous Oath, Luminescent Oath and Poseidon's Lance now only count when that rod is equipped.
+
+5.7.0
+- Catch log: after each reel FISCHXR reads the catch message (the fish, its weight and its 1-in-N odds) and keeps Catches.csv next to the macro. Turn it off with Read each catch on the Reel page.
+- Rare catches (1 in 100 or rarer) go to the FISCHXR Discord when you're signed in: the rarest are posted in the server, and /catch-alerts sends you a DM when your macro catches something rare. If you've hidden yourself from the leaderboards, your catches aren't posted publicly.
+
+5.6.0
+- Leaderboards: when you're signed in with Discord, your reels count toward the weekly and all-time FISCHXR leaderboards on reelworks.pages.dev and in the Discord bot (/leaderboard). Don't want to be on them? Use /leaderboard-visibility in Discord, or the switch on your profile page on the website.
+- While fishing, FISCHXR tells the FISCHXR service how it's doing every 10 minutes, so the website's "fishing right now" and the leaderboards stay current.
+
+5.5.0
+- FISCHXR comes as a single FISCHXR.exe from reelworks.pages.dev, with nothing else to install. When a new version is out, the .exe takes you to the download page.
+
+5.4.9
+- Poseidon's Lance: its bar is read whole, blue sweet spot included (before, FISCHXR saw only one white end of it and steered the wrong part of the bar), and the fish is kept near the middle, on the blue.
+
+5.4.8
+- Bellona's Waraxe: each reel on its own mouse button, as the game has it: the left reel on the left button, the right reel on the right button, steered at the same time; the right reel is kept on after the left one ends.
+- Luminescent Oath: its bar is followed from white through lavender to deep blue.
+- Verdant Oath: the bar is found when a wooden block hangs past either end of the reel, and when it touches an end its green zone decides where it is.
+- Cinder Block Rod: its bar fills the reel and never moves, and FISCHXR no longer takes that for scenery and ends the reel.
+
+5.4.7
+- Apollo's Sunshot: its bar is followed when it turns nearly black (the fish outside it). Before, FISCHXR could go blind for seconds while the fish got away.
+
+5.4.6
+- Bellona's Waraxe: both reels are worked. FISCHXR finds the two tracks where they really are on your screen (any resolution), takes turns between the two fish when they can't both be kept, and reads both reels in one capture.
+- Reel records now show how fast each reel was read (frames a second, and time spent capturing and reading), to tune slower PCs.
+
+5.4.5
+- Apollo's Sunshot: its bar is followed in its dark look too (the fish outside it). Before, FISCHXR lost the bar then and could end the reel early.
+- Starting to fish closes any open dialog, so an update prompt can't sit over the game while you fish; it's asked again when you stop.
+
+5.4.4
+- Settings has an "Open snapshots folder" button: your saved snapshots and reel records, one click away.
+
 5.4.3
 - Verdant Oath: FISCHXR follows its bar as it grows in and shrinks during the reel. Before, it took the bar's size from the first moments of the reel and then ignored most of the real bar as "the wrong size", steering blind for much of each reel.
 
@@ -10320,6 +10853,173 @@ RodNameDone(text, problem) {
     }
     try RodsChanged()
     try Hud.Update()
+}
+
+; ---- Catch log
+; After each reel: three quick snapshots of where the reel was (the catch
+; message shows there for about two seconds), read in the background, the
+; first one with a catch message wins.
+CatchQueue(geo) {
+    global CatchSeq
+    if (!Cfg["CatchLog"] || !IsObject(geo))
+        return
+    CatchSeq += 1
+    ih := Max(8, geo.ih), y := geo.y + geo.m - Round(ih * 1.5)
+    area := {seq: CatchSeq, x: geo.x, y: y, w: geo.w, h: ih * 4, k: Max(2, Round(112 / ih))}
+    for i, delay in [250, 900, 1600]
+        SetTimer(CatchShot.Bind(area, i), -delay)
+}
+
+CatchShot(area, i) {
+    global CatchBusyAt
+    if (area.seq != CatchSeq)                            ; a newer reel took over
+        return
+    png := A_Temp "\fischxr_catch" i ".png"
+    try FileDelete(png)
+    hbm := CaptureBitmap(area.x, area.y, area.w, area.h), big := 0, bmp := 0
+    if Gdip.Start() {
+        DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", &bmp)
+        big := GpScaled(bmp, area.w * area.k, area.h * area.k, 0)
+        DllCall("gdiplus\GdipDisposeImage", "Ptr", bmp)
+    }
+    SavePng(big ? big : hbm, png)
+    DllCall("DeleteObject", "Ptr", hbm)
+    if big
+        DllCall("DeleteObject", "Ptr", big)
+    if (i < 3)
+        return
+    pngs := A_Temp "\fischxr_catch1.png|" A_Temp "\fischxr_catch2.png|" A_Temp "\fischxr_catch3.png"
+    if IsObject(OcrHook) {                                ; tests
+        for p in StrSplit(pngs, "|")
+            if (c := ParseCatch(OcrHook.Call(p)))
+                return CatchRecord(c)
+        return
+    }
+    if (A_TickCount - CatchBusyAt < 15000)                ; (the last read is still going)
+        return
+    out := A_Temp "\fischxr_catch.txt"
+    try FileDelete(out)
+    try Run('powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "' CatchOcrScript() '" "' pngs '" "' out '"', , "Hide")
+    catch
+        return
+    CatchBusyAt := A_TickCount
+    SetTimer(CatchPoll, 250)
+}
+
+CatchPoll() {
+    global CatchBusyAt
+    out := A_Temp "\fischxr_catch.txt"
+    if FileExist(out) {
+        Sleep 60
+        txt := ""
+        try txt := FileRead(out, "UTF-8")
+        SetTimer(CatchPoll, 0), CatchBusyAt := 0
+        for part in StrSplit(txt, "-----")
+            if (c := ParseCatch(part))
+                return CatchRecord(c)
+        return
+    }
+    if (A_TickCount - CatchBusyAt > 15000)
+        SetTimer(CatchPoll, 0), CatchBusyAt := 0
+}
+
+; "You just caught a Chinook Salmon at 37.6kg! (1/48)" -> {fish, kg, odds}, or 0.
+ParseCatch(text) {
+    t := RegExReplace(text, "\s+", " ")
+    if !RegExMatch(t, "i)caught\s+an?\s+(.+?)\s+at\s+(\d[\d.,]*)\s*k\s*g.*?\(\s*[1lI|]\s*[/\\]\s*(\d[\d,.\s]*?)\s*\)", &m)
+        return 0
+    fish := Trim(m[1], " .,!"), odds := RegExReplace(m[3], "[^\d]")
+    kg := StrReplace(m[2], ",")
+    if (odds = "" || !IsNumber(kg) || StrLen(fish) < 2 || StrLen(fish) > 60)
+        return 0
+    kg := RegExReplace(Format("{:.1f}", Number(kg)), "\.0$")     ; (as the game shows it: one decimal)
+    return {fish: fish, kg: kg, odds: Integer(odds)}
+}
+
+CatchRecord(c) {
+    global CatchLast
+    CatchLast := c
+    LogEvent(Format("Caught {} ({} kg, 1 in {})", c.fish, c.kg, NumFmt(c.odds)))
+    path := A_ScriptDir "\Catches.csv"
+    try {
+        if !FileExist(path)
+            FileAppend("Time,Fish,Weight (kg),Odds (1 in),Rod`r`n", path, "UTF-8")
+        FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") ',"' StrReplace(c.fish, '"', '""') '",' c.kg "," c.odds ',"' StrReplace(CurRodName, '"', '""') '"' "`r`n", path, "UTF-8")
+    }
+    if (c.odds >= 100)
+        Remote.SendCatch(c)
+}
+
+NumFmt(n) => RegExReplace(n, "\G\d+?(?=(\d{3})+(?:\D|$))", "$0,")
+
+; The text reader for catch messages: each image is cleaned to its text
+; colours first (white, grey, and bright colours that aren't the water's teal),
+; read, and if that finds no catch message the original is read too.
+CatchOcrScript() {
+    path := A_Temp "\fischxr_catch_ocr1.ps1"
+    if FileExist(path)
+        return path
+    FileAppend("
+(
+param([string]$imgs, [string]$out)
+$ErrorActionPreference = 'Stop'
+$parts = @()
+try {
+    Add-Type -AssemblyName System.Drawing
+    Add-Type -AssemblyName System.Runtime.WindowsRuntime
+    Add-Type -TypeDefinition @'
+using System; using System.Drawing; using System.Drawing.Imaging; using System.Runtime.InteropServices;
+public static class CatchClean {
+    public static void Clean(string src, string dst) {
+        using (var b = new Bitmap(src)) {
+            var r = new Rectangle(0, 0, b.Width, b.Height);
+            var d = b.LockBits(r, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+            int n = d.Stride * d.Height; var px = new byte[n];
+            Marshal.Copy(d.Scan0, px, 0, n);
+            for (int i = 0; i < n; i += 4) {
+                float bb = px[i] / 255f, g = px[i + 1] / 255f, rr = px[i + 2] / 255f;
+                float mx = Math.Max(rr, Math.Max(g, bb)), mn = Math.Min(rr, Math.Min(g, bb));
+                float sat = mx > 0 ? (mx - mn) / mx : 0, dd = Math.Max(mx - mn, 1e-6f), h;
+                if (mx == rr) h = ((g - bb) / dd % 6 + 6) % 6 * 60; else if (mx == g) h = ((bb - rr) / dd + 2) * 60; else h = ((rr - g) / dd + 4) * 60;
+                bool text = (sat < 0.22f && mx > 0.62f) || (mx > 0.70f && sat >= 0.22f && !(h > 150 && h < 200));
+                byte v = text ? (byte)0 : (byte)255;
+                px[i] = v; px[i + 1] = v; px[i + 2] = v; px[i + 3] = 255;
+            }
+            Marshal.Copy(px, 0, d.Scan0, n);
+            b.UnlockBits(d);
+            b.Save(dst, ImageFormat.Png);
+        }
+    }
+}
+'@ -ReferencedAssemblies System.Drawing
+    $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
+    $null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
+    $null = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]
+    $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation``1' })[0]
+    function Await($op, $type) { $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op)); $t.Wait(-1) | Out-Null; $t.Result }
+    $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
+    function Read($img) {
+        $file = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync($img)) ([Windows.Storage.StorageFile])
+        $stream = Await ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+        $decoder = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
+        $bitmap = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
+        $result = Await ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
+        $stream.Dispose()
+        ($result.Lines | ForEach-Object { $_.Text }) -join ' '
+    }
+    foreach ($img in $imgs.Split('|')) {
+        if (-not (Test-Path $img)) { continue }
+        $clean = $img -replace '\.png$', '_clean.png'
+        [CatchClean]::Clean($img, $clean)
+        $t = Read $clean
+        if ($t -notmatch 'caught') { $t = Read $img }
+        $parts += $t
+        if ($t -match 'caught') { break }
+    }
+} catch { }
+($parts -join [Environment]::NewLine + '-----' + [Environment]::NewLine) | Set-Content -Path $out -Encoding UTF8
+)", path, "UTF-8")
+    return path
 }
 
 ; The PowerShell script that runs Windows' text reader on an image.
@@ -11188,7 +11888,7 @@ KnownRods() {
     static list := 0
     if !list {
         list := StrSplit(""
-            . "Carbon Rod|Fast Rod|Fischer's Rod|Flimsy Rod|Jinglestar Rod|Long Rod|Lucky Rod|Plastic Rod|Rose Rend|"
+            . "Poseidon's Lance|Carbon Rod|Fast Rod|Fischer's Rod|Flimsy Rod|Jinglestar Rod|Long Rod|Lucky Rod|Plastic Rod|Rose Rend|"
             . "Scarlet Ravager|Stone Rod|Training Rod|Fortune Rod|Fungal Rod|Magma Rod|Magnet Rod|Nocturnal Rod|"
             . "Precision Rod|Rapid Rod|Steady Rod|Arctic Rod|Avalanche Rod|Cinder Block Rod|Crystalized Rod|Depthseeker Rod|"
             . "Midas Rod|Phoenix Rod|Reinforced Rod|Scurvy Rod|Wildflower Rod|Aurora Rod|Blade Of Glorp|Brick Rod|Carrot Rod|"
@@ -12579,6 +13279,7 @@ ForgetSignIn() {
 }
 
 class Remote {
+    static lastSentAt := 0
     static req := 0, t0 := 0, ticker := 0, waiter := 0, lastState := "", learned := false
 
     static Start() {
@@ -12635,6 +13336,10 @@ class Remote {
     static Poll() {
         if (IsGuest() || this.req || this.Url() = "")
             return
+        ; While fishing, a report every 10 minutes keeps the leaderboards and
+        ; the website's "fishing right now" up to date.
+        if (Running && A_TickCount - this.lastSentAt > 600000)
+            this.Report()
         tok := Unprotect(Cfg["AuthTok"])
         if (tok = "")
             return
@@ -12667,6 +13372,25 @@ class Remote {
         }
     }
 
+    ; Sends a rare catch to the service (fire and forget).
+    static SendCatch(c) {
+        if (IsGuest() || this.Url() = "")
+            return
+        tok := Unprotect(Cfg["AuthTok"])
+        if (tok = "")
+            return
+        js := '{"fish":' JsonStr(c.fish) ',"kg":' c.kg ',"odds":' c.odds ',"rod":' JsonStr(CurRodName) '}'
+        try {
+            req := ComObject("WinHttp.WinHttpRequest.5.1")
+            req.Open("POST", this.Url() "/me/catch", true)
+            req.SetRequestHeader("Authorization", "Bearer " tok)
+            req.SetRequestHeader("Content-Type", "application/json")
+            req.SetRequestHeader("User-Agent", "FISCHXR/" APP_VER)
+            req.Send(js)
+            this.sendingCatch := req
+        }
+    }
+
     ; Tells the service the macro's state, when it changed (fire and forget).
     static Report() {
         if (IsGuest() || this.Url() = "")
@@ -12677,7 +13401,7 @@ class Remote {
         tok := Unprotect(Cfg["AuthTok"])
         if (tok = "")
             return
-        this.lastState := js
+        this.lastState := js, this.lastSentAt := A_TickCount
         try {
             req := ComObject("WinHttp.WinHttpRequest.5.1")
             req.Open("PUT", this.Url() "/me/state", true)
@@ -12817,8 +13541,12 @@ RemoteStateJson() {
         vals .= (vals = "" ? "" : ",") JsonStr(name) ":" JsonStr(v = "" ? "off" : v)
     }
     return '{"version":' JsonStr(APP_VER) ',"fishing":' (Running ? "true" : "false") ',"phase":' JsonStr(Phase.title)
-        . ',"rod":' JsonStr(CurRodName) ',"values":{' vals '}}'
+        . ',"rod":' JsonStr(CurRodName) ',"values":{' vals '}'
+        . ',"reels":' Cfg["LifeReels"] ',"secs":' RemoteLifeSecs() '}'     ; (for the leaderboards)
 }
+
+; All-time fishing time, including the session that's running.
+RemoteLifeSecs() => Cfg["LifeSecs"] + ((Running && Stats.start && !Stats.banked) ? (A_TickCount - Stats.start) // 1000 : 0)
 
 JsonUnescape(s) {
     out := "", i := 1

@@ -1,7 +1,9 @@
 {
-  "version": "5.5.0",
+  "version": "5.7.3",
   "url": "https://raw.githubusercontent.com/exoartar/FISCHXR/main/FISCHXR.ahk",
-  "sha256": "0fe4dc6694da84dff070d4a9a5dfb5ce361da356f845b7ff42371ca37ccb8db8",
-  "notes": "FISCHXR now also comes as a single FISCHXR.exe from reelworks.pages.dev.",
+  "sha256": "6cdcf804d2642e45c6ecc9ceff5ce4484adea0744d7e4c8a092eb5d814fa85c9",
+  "exe_url": "https://reelworks.pages.dev/download/FISCHXR.exe",
+  "exe_sha256": "cbdd840aae870ede2c0ed60c10e4a165e75c5bd919f1913c9df02255b7e4326d",
+  "notes": "FISCHXR.exe now updates itself, like the script version.",
   "api": "https://fischxr-api.exoartar.workers.dev/"
 }
